@@ -119,8 +119,8 @@ becomes a signed file, what the program does with data — is [docs/code-signing
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
-Status: not signed yet. The application to SignPath Foundation is being made in September 2026; until the first
-signed release the exe is unsigned, and this section will say when that changes.
+Status: not signed yet. The application to SignPath Foundation was submitted on 2026-09-15; until the first signed
+release the exe is unsigned, and this section will say when that changes.
 
 ## Relationship to Vortex Raid Tool
 
