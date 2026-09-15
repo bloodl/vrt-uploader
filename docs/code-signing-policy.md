@@ -4,8 +4,8 @@ Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
 This page says who is behind the signed `vrt-uploader.exe`, how it is built, what it does with your data and what
-a signature on it means. It is published here and on the download page of
-[vortexraidtool.com](https://vortexraidtool.com/downloads).
+a signature on it means. It is published here; from the first signed release on, the download page of
+[vortexraidtool.com](https://vortexraidtool.com/downloads) links it and carries the sentence above.
 
 ## Team
 
