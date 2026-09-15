@@ -3,14 +3,14 @@
 What has to happen between "the source is public" and "the exe people download carries a signature". The
 maintainer's own checklist; nothing here is needed to build or run the uploader.
 
-## 1. Before the repository goes public
+## 1. Before the repository goes public — done 2026-09-15
 
 - The GitHub profile that owns the repository shows **Furytann** as its display name.
-- Two-factor authentication is on for that account (SignPath requires it for every role).
-- Create the repository **public** as `bloodl/vrt-uploader`, push `main`, and check the first workflow run is
-  green (the release job is skipped until step 3).
+- Two-factor authentication is on for that account (SignPath requires it for every role) — check this one by hand.
+- The repository is **public** as `bloodl/vrt-uploader`, `main` is pushed, and the first workflow run is green
+  (the release job is skipped until step 3).
 - Repository settings: **Code security** → private vulnerability reporting **on** (SECURITY.md points people
-  there); **Branches** → protect `main` (no force pushes); **Actions** → allowed.
+  there); **Branches** → `main` protected (no force pushes, no deletion); **Actions** → allowed.
 
 ## 2. Apply
 
