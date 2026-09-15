@@ -1,0 +1,30 @@
+{
+  "name": "vrt-uploader",
+  "version": "1.6.0",
+  "description": "Carries a raid's loot history and the Vortex Raid Tool addon's readings from the loot master's PC to the guild's Vortex Raid Tool site",
+  "license": "MIT",
+  "author": "Furytann",
+  "private": true,
+  "type": "module",
+  "homepage": "https://vortexraidtool.com/downloads",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bloodl/vrt-uploader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bloodl/vrt-uploader/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:bundle": "node scripts/build.mjs --no-exe",
+    "start": "node scripts/build.mjs --no-exe && node dist/vrt-uploader.cjs",
+    "test": "node scripts/tests/run.mjs"
+  },
+  "devDependencies": {
+    "postject": "1.0.0-alpha.6",
+    "rcedit": "^5.0.2"
+  }
+}
