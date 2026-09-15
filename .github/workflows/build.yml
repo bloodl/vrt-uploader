@@ -19,8 +19,8 @@ jobs:
     name: tests (Linux, bundle only)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -34,8 +34,8 @@ jobs:
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -49,7 +49,7 @@ jobs:
           "$($v.CompanyName) | $($v.ProductName) | $($v.FileDescription) | $($v.FileVersion) | $($v.OriginalFilename)"
           "signature before SignPath: " + (Get-AuthenticodeSignature dist/vrt-uploader.exe).Status
           Get-Content dist/SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         id: upload
         with:
           name: vrt-uploader-unsigned
