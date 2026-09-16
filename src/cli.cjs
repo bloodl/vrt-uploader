@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.6.1"; // 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.7.0"; // 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -316,6 +316,75 @@ async function main() {
     }
     // WoW writes every addon's file at the same moment, so this is the same logout the loot history came from.
     if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
+    if (!has("--no-addon")) try { await carryWishlists(); } catch (e) { say(`the wishlists could not be carried to the addon: ${e.message}`); }
+  }
+
+  // ---------- the other way: the guild's wishlists, into the addon (0.10.0) ----------
+  // The one thing the site sends back to the game. The addon shows, on any item's tooltip, who has it wishlisted and
+  // at what rank — to ranks that can promote. It cannot fetch anything itself, and the game reads its saved variables
+  // only at login, so this writes the list into VortexRaidTool.lua as one top-level key, and only while the game is
+  // not running: a file the game has open is the game's, and it overwrites the whole thing on logout.
+  const wishlistStamp = new Map(); // per file: what was last written, so an unchanged site writes nothing
+  async function carryWishlists() {
+    if (gameRunning()) return;
+    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    for (const file of files) {
+      // Each file gets its own edition's lists: the TBC client's file the TBC guild's, the Forever client's file the Forever edition's.
+      const t = target({ flavour: flavourOf(file) });
+      const r = await fetch(`${t.server}/api/wishlists/addon?key=${encodeURIComponent(t.token)}`);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (!j?.items) continue;
+      const stamp = JSON.stringify(j);
+      if (wishlistStamp.get(file) === stamp) continue;
+      try {
+        if (writeWishlistsInto(file, j)) say(`${t.routed ? "→ " + t.guild + ": " : ""}wishlists carried to the addon — ${j.raiders} raider(s), ${Object.keys(j.items).length} item(s), as of ${j.at}`);
+        wishlistStamp.set(file, stamp);
+      } catch (e) { say(`${path.basename(path.dirname(path.dirname(file)))}: wishlists not written — ${e.message}`); }
+    }
+  }
+  /** Whether a World of Warcraft client is running on this PC (Windows: by process name; elsewhere: assume not). */
+  function gameRunning() {
+    if (process.platform !== "win32") return false;
+    try {
+      const out = spawnSync("tasklist", ["/FI", "IMAGENAME eq WowClassic.exe", "/FI", "STATUS eq RUNNING", "/NH"], { encoding: "utf8", windowsHide: true }).stdout ?? "";
+      if (/WowClassic\.exe/i.test(out)) return true;
+      const out2 = spawnSync("tasklist", ["/FI", "IMAGENAME eq Wow.exe", "/NH"], { encoding: "utf8", windowsHide: true }).stdout ?? "";
+      return /Wow\.exe/i.test(out2);
+    } catch { return false; }
+  }
+  /**
+   * Replace (or add) the top-level `["wishlists"]` block of the addon's saved variables with the site's list, leaving
+   * every other byte alone. The file the game writes is flat: each top-level key starts at column zero as
+   * `["key"] = {` and its block ends at the next column-zero `},`. Returns whether the file changed.
+   */
+  function writeWishlistsInto(file, j) {
+    const text = fs.readFileSync(file, "utf8");
+    const nl = text.includes("\r\n") ? "\r\n" : "\n";
+    const luaStr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"';
+    const lines = [`["wishlists"] = {`, `["at"] = ${luaStr(j.at ?? "")},`, `["raiders"] = ${Number(j.raiders) || 0},`, `["items"] = {`];
+    for (const [id, who] of Object.entries(j.items)) {
+      if (!/^\d+$/.test(id) || !Array.isArray(who)) continue;
+      lines.push(`[${id}] = {`);
+      for (const [main, rank] of who) lines.push(`{ ${luaStr(main)}, ${Number(rank) || 0} },`);
+      lines.push(`},`);
+    }
+    lines.push(`},`, `},`);
+    const block = lines.join(nl) + nl;
+    // The block's own inner tables also close with a column-zero `},` (the game indents nothing), and its item
+    // ids are bare `[123]` keys, so the end of the block is the first column-zero `},` followed by the next
+    // top-level STRING key `["…"]` or by the file's last `}` — nothing inside the block starts that way.
+    const re = /^\["wishlists"\] = \{\r?\n[\s\S]*?^\},\r?\n(?=\["|\}\r?\n?$)/m;
+    let out;
+    if (re.test(text)) out = text.replace(re, block);
+    else {
+      const end = text.lastIndexOf(nl + "}");
+      if (end < 0) throw new Error("the file does not end the way the game writes it");
+      out = text.slice(0, end + nl.length) + block + text.slice(end + nl.length);
+    }
+    if (out === text) return false;
+    fs.writeFileSync(file, out);
+    return true;
   }
 }
 
