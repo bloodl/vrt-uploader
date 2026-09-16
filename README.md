@@ -112,15 +112,15 @@ shared with the Vortex Raid Tool site, which is why they arrive here as copies; 
 
 ## Code signing
 
-Releases are built by GitHub Actions from a tag on this repository and submitted to
-[SignPath Foundation](https://signpath.org) for signing. The full policy — who holds which role, how a build
-becomes a signed file, what the program does with data — is [docs/code-signing-policy.md](docs/code-signing-policy.md).
+Releases are built by GitHub Actions from a tag on this repository, and the release job is ready to submit the
+build for signing. The policy — who holds which role, how a build becomes a signed file, what the program does
+with data — is [docs/code-signing-policy.md](docs/code-signing-policy.md).
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
-
-Status: not signed yet. The application to SignPath Foundation was submitted on 2026-09-15; until the first signed
-release the exe is unsigned, and this section will say when that changes.
+Status: not signed yet. An application to [SignPath Foundation](https://signpath.org) was made on 2026-09-15 and
+declined on 2026-09-16: the Foundation program looks for public adoption (stars, forks, contributors, independent
+mentions) that a repository published five days earlier does not have yet, and invited a reapplication once it
+does. Until a certificate exists the exe is unsigned, and this section will say when that changes. If you build
+it yourself from this repository, you get the same file.
 
 ## Relationship to Vortex Raid Tool
 
