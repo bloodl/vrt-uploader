@@ -1,5 +1,9 @@
 # Changes
 
+## 1.9.1 — 2026-09-16
+
+- No more "which ones?" on the first run: every loot addon file written in the last half-year is taken, each account kept apart on the site; a file untouched for six months is left alone unless it is the only one. `--file` still picks by hand.
+
 ## 1.9.0 — 2026-09-16
 
 - A wishlist row carries the raider's Priority when the site sends it, and, under a token or a recipe, the name of what was actually wishlisted; the addon shows both on the tooltip. The site decides whether the numbers travel (its own switch); without them the rows are written as before.

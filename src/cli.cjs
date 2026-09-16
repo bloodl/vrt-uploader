@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.9.0"; // 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.9.1"; // 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -157,15 +157,20 @@ async function main() {
     if (!found.length) {
       console.log("\nNo loot addon SavedVariables file (RCLootCouncil, Gargul, CEPGP, MonolithDKP, CommunityDKP) found in the usual World of Warcraft folders.");
       cfg.files = [await ask("Full path to the addon's .lua (WoW\\_classic_\\WTF\\Account\\<account>\\SavedVariables\\): ")];
-    } else if (found.length === 1 || quiet) {
-      cfg.files = [found[0]];
-      console.log(`\n${labelOfFile(cfg.files[0])} history: ${cfg.files[0]}`);
     } else {
-      console.log("\nSeveral loot addon files found (newest first — the loot master's account is usually first). Pick every addon whose history you want on the site:");
-      found.forEach((f, i) => console.log(`  ${i + 1}. ${f}   (${labelOfFile(f)}, account ${accountOf(f)})`));
-      const pick = (await ask("Which ones? A number, several like 1,3, or 'all' [1]: ")).toLowerCase();
-      cfg.files = pick === "all" ? found : [...new Set(pick.split(/[\s,]+/).map((n) => found[Number(n) - 1]).filter(Boolean))];
-      if (!cfg.files.length) cfg.files = [found[0]];
+      // Every file that has been written this half-year, no question asked (1.9.1 — the first officers to install
+      // were stopped at "Which ones? A number, several like 1,3, or 'all'" and had to be told what to type). Taking
+      // them all is the right answer: each account is kept apart on the site, a raid that is not the guild's is left
+      // out there, and the in-game addon's file beside each one carries that account's characters. A file nobody
+      // has touched in six months is an old client's, and is left alone unless it is the only one. --file picks by hand.
+      const HALF_YEAR = 183 * 86400e3;
+      const recent = found.filter((f) => { try { return Date.now() - fs.statSync(f).mtimeMs < HALF_YEAR; } catch { return false; } });
+      cfg.files = recent.length ? recent : [found[0]];
+      const accounts = [...new Set(cfg.files.map(accountOf))];
+      console.log(cfg.files.length === 1
+        ? `\n${labelOfFile(cfg.files[0])} history: ${cfg.files[0]}`
+        : `\n${cfg.files.length} loot addon files found on ${accounts.length} account${accounts.length === 1 ? "" : "s"} — all of them are sent, each account kept apart on the site:\n` + cfg.files.map((f) => `  ${f}   (${labelOfFile(f)}, account ${accountOf(f)})`).join("\n"));
+      if (found.length > cfg.files.length) console.log(`  (${found.length - cfg.files.length} older file(s) untouched for six months left alone — run once with --file to add one)`);
     }
   }
   if (!cfg.by) cfg.by = process.env.USERNAME || process.env.USER || "uploader";
