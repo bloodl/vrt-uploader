@@ -1,5 +1,9 @@
 # Changes
 
+## 1.8.0 — 2026-09-16
+
+- The guild bank's open request queue is carried into the in-game addon the way the wishlists are, and a hand-out marked in the addon is carried back to the site, once, with the site's answer remembered. One shared block writer for both keys; nothing is written while a World of Warcraft client is running.
+
 ## 1.7.0 — 2026-09-16
 
 - The other direction, for the first time: the guild's wishlists are fetched from the site and written into the in-game addon's saved variables while the game is not running, as one top-level key, every other byte left alone. The addon shows them on item tooltips to ranks that can promote. Nothing is written while a World of Warcraft client is running.
