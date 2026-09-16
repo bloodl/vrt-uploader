@@ -1,5 +1,11 @@
 # Changes
 
+## 1.9.2 — 2026-09-16
+
+- A file the site does not take — another loot addon's history than the guild runs — is set aside once the site says so, and a file whose history cannot be read is said once and left alone; neither stops the files after it.
+- Saying yes to "start with Windows" on the first run hands over to the background at once, so the window can be closed and nothing stops.
+- A newer download run by hand takes over the logon entry from the old file, stops the old copy and says it can be deleted; the settings live in the profile folder, so nothing has to be typed again.
+
 ## 1.9.1 — 2026-09-16
 
 - No more "which ones?" on the first run: every loot addon file written in the last half-year is taken, each account kept apart on the site; a file untouched for six months is left alone unless it is the only one. `--file` still picks by hand.

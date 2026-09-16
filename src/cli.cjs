@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.9.1"; // 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.9.2"; // 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -87,6 +87,16 @@ async function main() {
   // Versions before 1.6.0 started at logon from a VBScript in the Startup folder — the pattern antivirus heuristics
   // flag. One that is still there is moved to the Run list, once, and the move is written to the log.
   if (process.platform === "win32" && fs.existsSync(legacyStartup())) installStartup("moved");
+  // A newer download run by hand (1.9.2 — "how do I uninstall the old one and install the new?"): the logon entry
+  // still names the file from last time, so it is pointed at this one, the old copy is stopped, and its file named
+  // for deletion. Nothing else to do: the settings live in the profile folder, not beside the exe.
+  if (process.platform === "win32" && isSea && !quiet) {
+    const oldExe = exeOfEntry(startupEntry());
+    if (oldExe && path.resolve(oldExe).toLowerCase() !== path.resolve(process.execPath).toLowerCase() && installStartup("newer")) {
+      const stopped = stopProgramAt(oldExe);
+      say(`the copy at ${oldExe} ${stopped ? "has been stopped and " : ""}is not needed any more — delete it when you like`);
+    }
+  }
 
   // No code: the hub works out the guild from the names in the loot history (upload-auto.js on the server) — the
   // guild whose roster they clearly fit. Nothing is uploaded until a guild has been found; a guild that wants the
@@ -196,9 +206,15 @@ async function main() {
   };
   const refusedLine = (what, j, t) => j.wrongGame ? `${what}: from a ${j.version} client — ${t.guild} does not take it (no edition of the guild plays that game yet)` : j.wrongRealm ? `${what}: from ${j.realm} — not ${t.guild}'s realm` : null;
 
+  // Files the site does not take — another loot addon's history than the guild runs (1.9.2), or a file whose
+  // history cannot be read (an addon installed but never used) — are said once and left alone after that.
+  const setAside = new Map(); // file -> why
   const uploadOne = async (file) => {
+    if (setAside.has(file)) return;
     const system = systemOf(file);
-    const rows = rowsFromAddon(fs.readFileSync(file, "utf8"), system, cfg.realm ?? "");
+    let rows;
+    try { rows = rowsFromAddon(fs.readFileSync(file, "utf8"), system, cfg.realm ?? ""); }
+    catch (e) { setAside.set(file, e.message); say(`${path.basename(file)} (account ${accountOf(file)}): no ${addonLabel(system)} history in it (${e.message}) — left alone`); return; }
     const t = target({ flavour: flavourOf(file) });
     const r = await fetch(`${t.server}/api/loot/rclc`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: t.token, by: cfg.by, rows, system, source: path.basename(file), account: accountOf(file) }) });
     const j = await r.json().catch(() => ({}));
@@ -211,9 +227,16 @@ async function main() {
     }
     if (r.status === 403) throw new Error("the bot refused the upload code — ask the guild master for a new one (settings page → Uploader)");
     if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+    if (j.ignored) { setAside.set(file, j.ignored); say(`${t.routed ? "→ " + t.guild + ": " : ""}${path.basename(file)} (account ${accountOf(file)}): ${j.ignored} — not sent again`); return; }
     say(`${t.routed ? "→ " + t.guild + ": " : ""}uploaded ${j.count} ${addonLabel(system)} award(s)${cfg.files.length > 1 ? ` from account ${accountOf(file)}` : ""}${j.changed === false ? " (no change since last time)" : " — the standings are rebuilding"}${rows.undated ? ` — ${rows.undated} older CEPGP loot line(s) carry no date and were left out` : ""}`);
   };
-  const upload = async (files = cfg.files) => { for (const f of files) await uploadOne(f); };
+  // Every file gets its turn: one that fails is reported and the next is sent all the same (1.9.2 — a CEPGP file
+  // with nothing in it used to stop the files after it); the first failure is what --once exits with.
+  const upload = async (files = cfg.files) => {
+    let firstError = null;
+    for (const f of files) { try { await uploadOne(f); } catch (e) { say(`${path.basename(f)} (account ${accountOf(f)}): upload failed — ${e.message}`); firstError ??= e; } }
+    if (firstError) throw firstError;
+  };
 
   // The in-game addon writes what the game knows — resistance gear read off the items, recipes read off a trade
   // skill window that was open — into its own SavedVariables, and cannot send any of it itself. So this carries
@@ -289,7 +312,7 @@ async function main() {
   // --once: let the process wind down by itself (a fetch socket may still be closing — an immediate
   // process.exit() there trips a libuv assertion on Windows); force the exit only if it lingers.
   const finish = (code) => { process.exitCode = code; setTimeout(() => process.exit(code), 1500).unref(); };
-  try { await upload(); } catch (e) { say(`upload failed: ${e.message}`); if (has("--once")) return finish(1); }
+  try { await upload(); } catch (e) { if (has("--once")) return finish(1); } // each file's failure was said as it happened
   // The addon's own reading is a bonus, never a reason to fail a loot upload.
   if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
   if (has("--once")) return finish(0);
@@ -297,7 +320,15 @@ async function main() {
   if (process.platform === "win32" && !quiet && !has("--install-startup") && !has("--no-ask") && !cfg.askedStartup) {
     cfg.askedStartup = true; saveCfg(cfg);
     const a = (await ask("\nStart the uploader with Windows, so it runs after every raid by itself? [Y/n] ")).toLowerCase();
-    if (!a || a.startsWith("y")) installStartup();
+    if ((!a || a.startsWith("y")) && installStartup() && isSea) {
+      // Off to the background now, not at the next logon (1.9.2): the same hidden start the logon entry makes, so the
+      // person can close this window and nothing stops. Before this the window had to stay open until the next logon.
+      const child = spawn(process.execPath, ["--quiet", ...(flag("--home") ? ["--home", path.resolve(flag("--home"))] : [])], { detached: true, stdio: "ignore", windowsHide: true, env: { ...process.env, VRT_UPLOADER_HIDDEN: "1" } });
+      child.unref();
+      console.log("\nRunning in the background from now on, and again at every logon. This window can be closed — nothing stops.");
+      await ask("Press Enter to close it. ");
+      return finish(0);
+    }
   }
   if (has("--install-startup")) installStartup();
 
@@ -481,17 +512,36 @@ const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const RUN_NAME = "VortexRaidToolUploader";
 function legacyStartup() { return path.join(process.env.APPDATA || os.homedir(), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "VortexRaidToolUploader.vbs"); }
 function reg(...args) { const r = spawnSync("reg.exe", args, { encoding: "utf8", windowsHide: true }); return r.status === 0; }
+/** The logon entry as it stands — the command line in the Run list — or null. */
+function startupEntry() {
+  if (process.platform !== "win32") return null;
+  const r = spawnSync("reg.exe", ["query", RUN_KEY, "/v", RUN_NAME], { encoding: "utf8", windowsHide: true });
+  if (r.status !== 0) return null;
+  const m = new RegExp(`${RUN_NAME}\\s+REG_SZ\\s+(.+)$`, "m").exec(r.stdout ?? "");
+  return m ? m[1].trim() : null;
+}
+/** The exe a logon entry starts, or null: the first quoted path, as installStartup writes it. */
+const exeOfEntry = (entry) => (entry && /^"([^"]+\.exe)"/i.exec(entry)?.[1]) || null;
+/** Stop every running copy of the program at that path — an older download the logon entry used to start. */
+function stopProgramAt(exe) {
+  if (process.platform !== "win32") return false;
+  const ps = `Get-Process | Where-Object { $_.Path -eq '${exe.replace(/'/g, "''")}' -and $_.Id -ne ${process.pid} } | Stop-Process -Force`;
+  const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { encoding: "utf8", windowsHide: true, timeout: 20000 });
+  return r.status === 0;
+}
 function installStartup(why) {
-  if (process.platform !== "win32") { say("startup install is for Windows; on other systems run it from your own autostart"); return; }
+  if (process.platform !== "win32") { say("startup install is for Windows; on other systems run it from your own autostart"); return false; }
   const parts = [process.execPath, ...(isSea ? [] : [path.resolve(process.argv[1])])].map((p) => `"${p}"`);
   if (flag("--home")) parts.push("--home", `"${path.resolve(flag("--home"))}"`);
   parts.push("--quiet");
-  if (!reg("add", RUN_KEY, "/v", RUN_NAME, "/t", "REG_SZ", "/d", parts.join(" "), "/f")) { say("could not write the logon entry (reg.exe said no)"); return; }
+  if (!reg("add", RUN_KEY, "/v", RUN_NAME, "/t", "REG_SZ", "/d", parts.join(" "), "/f")) { say("could not write the logon entry (reg.exe said no)"); return false; }
   let hadScript = false;
   try { fs.unlinkSync(legacyStartup()); hadScript = true; } catch {}
   say(why === "moved" && hadScript
     ? `the logon entry moved from a script in the Startup folder to your user's Run list (${RUN_KEY}\\${RUN_NAME}) — same behaviour, nothing for an antivirus to quarantine`
+    : why === "newer" ? `the logon entry now starts this file (${process.execPath})`
     : `will start at every logon, without a window — the value ${RUN_NAME} in your user's Run list (${RUN_KEY}); --remove-startup takes it out`);
+  return true;
 }
 function removeStartup() {
   if (process.platform !== "win32") { say("nothing to remove: the logon entry is a Windows thing"); return; }
