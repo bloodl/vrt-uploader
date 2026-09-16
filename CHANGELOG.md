@@ -1,5 +1,9 @@
 # Changes
 
+## 1.9.0 — 2026-09-16
+
+- A wishlist row carries the raider's Priority when the site sends it, and, under a token or a recipe, the name of what was actually wishlisted; the addon shows both on the tooltip. The site decides whether the numbers travel (its own switch); without them the rows are written as before.
+
 ## 1.8.0 — 2026-09-16
 
 - The guild bank's open request queue is carried into the in-game addon the way the wishlists are, and a hand-out marked in the addon is carried back to the site, once, with the site's answer remembered. One shared block writer for both keys; nothing is written while a World of Warcraft client is running.

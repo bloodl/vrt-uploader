@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.8.0"; // 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.9.0"; // 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -400,7 +400,7 @@ async function main() {
       const stamp = JSON.stringify(j);
       if (wishlistStamp.get(file) === stamp) continue;
       try {
-        if (writeWishlistsInto(file, j)) say(`${t.routed ? "→ " + t.guild + ": " : ""}wishlists carried to the addon — ${j.raiders} raider(s), ${Object.keys(j.items).length} item(s), as of ${j.at}`);
+        if (writeWishlistsInto(file, j)) say(`${t.routed ? "→ " + t.guild + ": " : ""}wishlists carried to the addon — ${j.raiders} raider(s), ${Object.keys(j.items).length} item(s)${j.priority ? ", with Priority" : ""}, as of ${j.at}`);
         wishlistStamp.set(file, stamp);
       } catch (e) { say(`${path.basename(path.dirname(path.dirname(file)))}: wishlists not written — ${e.message}`); }
     }
@@ -422,11 +422,18 @@ async function main() {
    */
   function writeWishlistsInto(file, j) {
     const luaStr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"';
-    const lines = [`["at"] = ${luaStr(j.at ?? "")},`, `["raiders"] = ${Number(j.raiders) || 0},`, `["items"] = {`];
+    // A row is { main, rank }, or { main, rank, prio } with the raider's Priority (1.9.0), or { main, rank, prio-or-false,
+    // via } under a token or a recipe, `via` naming what was actually wishlisted — false keeps the row a plain sequence.
+    const num = (x) => (x === null || x === undefined || !Number.isFinite(Number(x)) ? null : Number(x));
+    const lines = [`["at"] = ${luaStr(j.at ?? "")},`, `["raiders"] = ${Number(j.raiders) || 0},`, `["priority"] = ${j.priority ? "true" : "false"},`, `["items"] = {`];
     for (const [id, who] of Object.entries(j.items)) {
       if (!/^\d+$/.test(id) || !Array.isArray(who)) continue;
       lines.push(`[${id}] = {`);
-      for (const [main, rank] of who) lines.push(`{ ${luaStr(main)}, ${Number(rank) || 0} },`);
+      for (const [main, rank, prio, via] of who) {
+        const p = num(prio);
+        const tail = typeof via === "string" && via ? `, ${p === null ? "false" : p}, ${luaStr(via)}` : p === null ? "" : `, ${p}`;
+        lines.push(`{ ${luaStr(main)}, ${Number(rank) || 0}${tail} },`);
+      }
       lines.push(`},`);
     }
     lines.push(`},`);
