@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.6.0"; // 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.6.1"; // 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -240,11 +240,11 @@ async function main() {
           const j = await r.json().catch(() => ({}));
           if (!r.ok) refused.set(`${character}:${what}`, stamp);
           if (r.status === 409 && refusedLine(character, j, t)) { say(refusedLine(character, j, t)); return; }
-          if (r.status === 404) { say(`${character}: not on ${t.routed ? t.guild + "'s" : "the"} roster, so the addon's ${what} were not filed`); return; }
+          if (r.status === 404) { say(`${character}: not on ${t.routed ? t.guild + "'s" : "the"} roster and not in its guild list, so the addon's ${what} were not filed`); return; }
           if (!r.ok) { say(`${character}: the bot refused the addon's ${what} (${j.error ?? `HTTP ${r.status}`})`); return; }
           cfg.sent[character] = { ...(cfg.sent[character] ?? {}), [what]: stamp };
           posted++;
-          if (what === "gear") say(`${character}: resistance gear filed — ${Object.entries(j.sets ?? {}).map(([k, v]) => `${k} ${v}`).join(", ") || "nothing found"}`);
+          if (what === "gear") say(`${character}: resistance gear filed${j.guild ? " (in the guild, not on the roster — an officer can link it to a main)" : ""} — ${Object.entries(j.sets ?? {}).map(([k, v]) => `${k} ${v}`).join(", ") || "nothing found"}`);
           else say(`${character}: ${j.added} new recipe(s)${j.known ? `, ${j.known} already known` : ""}${j.refused?.length ? `, ${j.refused.length} not recognised` : ""}`);
         };
         if (mine.resist && Object.keys(mine.resist).length) await post("/api/resist/report", { sets: mine.resist, seen: list(mine.seen) }, mine.resistAt, "gear");

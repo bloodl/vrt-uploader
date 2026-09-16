@@ -1,5 +1,9 @@
 # Changes
 
+## 1.6.1 — 2026-09-16
+
+- A guild member on nobody's roster entry has their resistance gear filed under their own name (the site does it the way it already did recipes); the gear line says so, and the "not on the roster" line is only for a character in neither list.
+
 ## 1.6.0 — not released yet
 
 - **Starting with Windows is a value in your own user's Run list**, no longer a VBScript in the Startup folder.
