@@ -1,5 +1,9 @@
 # Changes
 
+## 1.10.0 — 2026-09-16
+
+- The site's wishlists and bank requests go into the addon's own Inbox.lua, inside the addon folder of the game flavour the saved variables belong to, every two minutes whenever the site's answer changed — game open or not. The game reads that file at every /reload and never writes it. The saved variables are only ever read from now on: a write into them during a /reload had left them unreadable.
+
 ## 1.9.2 — 2026-09-16
 
 - A file the site does not take — another loot addon's history than the guild runs — is set aside once the site says so, and a file whose history cannot be read is said once and left alone; neither stops the files after it.

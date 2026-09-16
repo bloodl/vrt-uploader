@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.9.2"; // 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.10.0"; // 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -83,6 +83,12 @@ async function main() {
   if (flag("--by")) cfg.by = flag("--by");
   if (flag("--system")) cfg.system = flag("--system").toLowerCase();
   const quiet = has("--quiet");
+  // The inbox's state lives up here with the rest of main's state: carryInbox runs once before the watch loop, and a
+  // const declared further down would still be in its dead zone then (the hub's claim route died of the same thing
+  // on 2026-09-16).
+  const INBOX_EVERY = 120; // seconds between asks of the site
+  const inboxStamp = new Map(); // per addon folder: what was last written, so an unchanged site writes nothing
+  let inboxAskedAt = 0;
   const systemOf = (file) => systemOfFile(file) ?? cfg.system ?? "rclc";
   // Versions before 1.6.0 started at logon from a VBScript in the Startup folder — the pattern antivirus heuristics
   // flag. One that is still there is moved to the Run list, once, and the move is written to the log.
@@ -315,6 +321,7 @@ async function main() {
   try { await upload(); } catch (e) { if (has("--once")) return finish(1); } // each file's failure was said as it happened
   // The addon's own reading is a bonus, never a reason to fail a loot upload.
   if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
+  if (!has("--no-addon")) try { await carryInbox(true); } catch (e) { say(`the inbox could not be written: ${e.message}`); }
   if (has("--once")) return finish(0);
 
   if (process.platform === "win32" && !quiet && !has("--install-startup") && !has("--no-ask") && !cfg.askedStartup) {
@@ -352,22 +359,19 @@ async function main() {
     }
     // WoW writes every addon's file at the same moment, so this is the same logout the loot history came from.
     if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
-    if (!has("--no-addon")) try { await carryWishlists(); } catch (e) { say(`the wishlists could not be carried to the addon: ${e.message}`); }
-    if (!has("--no-addon")) try { await carryRequests(); } catch (e) { say(`the bank requests could not be carried: ${e.message}`); }
+    if (!has("--no-addon")) try { await carryRequests(); } catch (e) { say(`the hand-outs could not be carried out: ${e.message}`); }
+    if (!has("--no-addon")) try { await carryInbox(); } catch (e) { say(`the inbox could not be written: ${e.message}`); }
   }
 
-  // ---------- bank requests, both ways (0.10.0) ----------
-  // Out of the game: a hand-out made on the addon's Requests tab is a mark in the saved variables (db.given[id] =
-  // { by, at, system }); every one not yet acknowledged is posted, and the site's answer — ok, already, gone — is
-  // remembered so it is sent once. Into the game: the open queue, written as ["requests"] while the game is closed,
-  // the way the wishlists are. The written copy carries the acknowledged ids so the addon can drop its marks.
-  const requestStamp = new Map();
+  // ---------- bank requests, out of the game (0.10.0) ----------
+  // A hand-out made on the addon's Requests tab is a mark in the saved variables (db.given[id] = { by, at, system });
+  // every one not yet acknowledged is posted, and the site's answer — ok, already, gone — is remembered so it is sent
+  // once. The saved variables are only ever READ here: see carryInbox for why.
   async function carryRequests() {
     const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
     cfg.givenSent = cfg.givenSent ?? {};
     for (const file of files) {
       const t = target({ flavour: flavourOf(file) });
-      // Out: the addon's Given marks.
       let db = null;
       try { db = parseGlobal(fs.readFileSync(file, "utf8"), "VortexRaidToolDB"); } catch { db = null; }
       for (const [id, mark] of Object.entries(db?.given ?? {})) {
@@ -377,28 +381,67 @@ async function main() {
         if (r.ok || r.status === 404 || r.status === 409) {
           cfg.givenSent[id] = { at: new Date().toISOString().slice(0, 10), result: j.already ? "already" : j.gone ? "gone" : r.ok ? "ok" : j.error ?? `HTTP ${r.status}` };
           saveCfg(cfg);
-          say(`${t.routed ? "→ " + t.guild + ": " : ""}${mark.system ?? "request"} for ${j.main ?? id}: ${j.already ? "was already handed out on the site" : j.gone ? "no longer on the site (withdrawn or handled)" : r.ok ? `handed out in game by ${mark.by} — filed` : `refused (${j.error ?? r.status})`}`);
+          say(`${t.routed ? "→ " + t.guild + ": " : ""}${mark.system ?? "request"} for ${j.main ?? id}: ${j.already ? "was already handed out on the site" : j.gone ? "no longer on the site (withdrawn or handled)" : r.ok ? `handed out in game by ${mark.by ?? "?"} — the site has it` : j.error ?? `HTTP ${r.status}`}`);
+          inboxStamp.clear(); // the site's queue changed: the inbox is rewritten on the next look
         }
       }
-      // In: the open queue, only while the game is not running.
-      if (gameRunning()) continue;
-      const r = await fetch(`${t.server}/api/requests/addon?key=${encodeURIComponent(t.token)}`);
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (!j?.systems) continue;
-      j.acked = Object.keys(cfg.givenSent); // the addon drops its marks for these
-      const stamp = JSON.stringify(j);
-      if (requestStamp.get(file) === stamp) continue;
-      try {
-        if (writeBlockInto(file, "requests", requestsLua(j))) say(`${t.routed ? "→ " + t.guild + ": " : ""}bank requests carried to the addon — ${j.systems.reduce((n, s) => n + s.rows.length, 0)} waiting, as of ${j.at}`);
-        requestStamp.set(file, stamp);
-      } catch (e) { say(`${path.basename(path.dirname(path.dirname(file)))}: requests not written — ${e.message}`); }
     }
   }
-  /** The open queue as the Lua the addon reads: ["requests"] = { at, acked = { id, … }, systems = { { id, name, unit, units, lockout, rows = { { id, main, character, amount, what, purpose, at, items = { { name, qty, itemId, inBank }, … } }, … } }, … } } */
+
+  // ---------- the site's data, into the game: the inbox (1.10.0) ----------
+  // The guild's wishlists and the bank's request queue used to be written into the addon's saved variables while
+  // the game was closed. The game rewrites that file from memory at every /reload and logout, so a write while it
+  // ran could only ever be lost — and on 2026-09-16 one landed in the middle of a /reload (the process reads as "not
+  // responding" for a moment, which the old running-check mistook for closed) and left the file unreadable; the game
+  // loaded nothing. So the saved variables are never written again. The site's data goes into Inbox.lua inside the
+  // addon's own folder — a code file the game reads fresh at every /reload and never writes — every couple of
+  // minutes, whenever the site's answer changed. An officer's /reload takes it; nothing else can, that is the game.
+  /** The addon's folder for the game flavour a saved-variables file belongs to, or null when the addon is not installed there. */
+  function addonDirOf(svFile) {
+    // <WoW>\_anniversary_\WTF\Account\<account>\SavedVariables\VortexRaidTool.lua → <WoW>\_anniversary_\Interface\AddOns\VortexRaidTool
+    const flavourRoot = path.resolve(svFile, "..", "..", "..", "..", ".."); // file → SavedVariables → <account> → Account → WTF → the flavour
+    const dir = path.join(flavourRoot, "Interface", "AddOns", "VortexRaidTool");
+    try { return fs.existsSync(path.join(dir, "VortexRaidTool.toc")) ? dir : null; } catch { return null; }
+  }
+  async function carryInbox(force) {
+    if (!force && Date.now() - inboxAskedAt < INBOX_EVERY * 1000) return;
+    inboxAskedAt = Date.now();
+    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    const done = new Set();
+    for (const file of files) {
+      const dir = addonDirOf(file);
+      if (!dir || done.has(dir.toLowerCase())) continue;
+      done.add(dir.toLowerCase());
+      // Each flavour gets its own edition's data: the TBC client's folder the TBC guild's, the Forever client's the Forever edition's.
+      const t = target({ flavour: flavourOf(file) });
+      let wish = null, req = null;
+      try { const r = await fetch(`${t.server}/api/wishlists/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.items) wish = j; } } catch { /* the site is away: keep what the file has */ }
+      try { const r = await fetch(`${t.server}/api/requests/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.systems) { j.acked = Object.keys(cfg.givenSent ?? {}); req = j; } } } catch { /* same */ }
+      if (!wish && !req) continue;
+      const stamp = JSON.stringify([wish, req]);
+      if (inboxStamp.get(dir) === stamp) continue;
+      try {
+        fs.writeFileSync(path.join(dir, "Inbox.lua"), inboxLua(wish, req));
+        inboxStamp.set(dir, stamp);
+        say(`${t.routed ? "→ " + t.guild + ": " : ""}inbox written for the addon — ${wish ? `wishlists of ${wish.raiders} raider(s), ${Object.keys(wish.items).length} item(s)${wish.priority ? " with Priority" : ""}` : "no wishlists"}; ${req ? `${req.systems.reduce((n, s) => n + s.rows.length, 0)} bank request(s) waiting` : "no requests"} — a /reload takes it`);
+      } catch (e) { say(`${path.basename(path.dirname(dir))}: inbox not written — ${e.message}`); }
+    }
+  }
+  // Function declarations, hoisted: carryInbox runs once before main reaches this line.
+  function luaStr(v) { return '"' + String(v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"'; }
+  function luaNum(v) { return (Number.isFinite(Number(v)) ? Number(v) : 0); }
+  /** The whole inbox file: one global the addon reads at load, with a stamp of when it was written. */
+  function inboxLua(wish, req) {
+    const stamp = new Date().toLocaleString("sv-SE").slice(0, 16);
+    const lines = ["-- Vortex Raid Tool — written by the uploader; the game reads it at every /reload. Do not edit.", "VortexRaidToolInbox = {", `["stamp"] = ${luaStr(stamp)},`];
+    if (wish) lines.push(`["wishlists"] = {`, ...wishlistsLua(wish), `},`);
+    if (req) lines.push(`["requests"] = {`, ...requestsLua(req), `},`);
+    lines.push("}", "");
+    return lines.join("\n");
+  }
+  /** The open queue as Lua: at, acked = { id, … }, systems = { { id, name, unit, units, lockout, rows = { { id, main, character, amount, what, purpose, at, items = { { name, qty, itemId, inBank }, … } }, … } }, … }. */
   function requestsLua(j) {
-    const s = (v) => '"' + String(v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"';
-    const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const s = luaStr, n = luaNum;
     const lines = [`["at"] = ${s(j.at)},`, `["acked"] = {`, ...(j.acked ?? []).map((id) => `${s(id)},`), `},`, `["systems"] = {`];
     for (const sys of j.systems) {
       lines.push(`{`, `["id"] = ${s(sys.id)},`, `["name"] = ${s(sys.name)},`, `["unit"] = ${s(sys.unit)},`, `["units"] = ${s(sys.units)},`, `["lockout"] = ${s(sys.lockout)},`, `["rows"] = {`);
@@ -416,50 +459,12 @@ async function main() {
     lines.push(`},`);
     return lines;
   }
-
-  // ---------- the other way: the guild's wishlists, into the addon (0.10.0) ----------
-  // The one thing the site sends back to the game. The addon shows, on any item's tooltip, who has it wishlisted and
-  // at what rank — to ranks that can promote. It cannot fetch anything itself, and the game reads its saved variables
-  // only at login, so this writes the list into VortexRaidTool.lua as one top-level key, and only while the game is
-  // not running: a file the game has open is the game's, and it overwrites the whole thing on logout.
-  const wishlistStamp = new Map(); // per file: what was last written, so an unchanged site writes nothing
-  async function carryWishlists() {
-    if (gameRunning()) return;
-    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
-    for (const file of files) {
-      // Each file gets its own edition's lists: the TBC client's file the TBC guild's, the Forever client's file the Forever edition's.
-      const t = target({ flavour: flavourOf(file) });
-      const r = await fetch(`${t.server}/api/wishlists/addon?key=${encodeURIComponent(t.token)}`);
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (!j?.items) continue;
-      const stamp = JSON.stringify(j);
-      if (wishlistStamp.get(file) === stamp) continue;
-      try {
-        if (writeWishlistsInto(file, j)) say(`${t.routed ? "→ " + t.guild + ": " : ""}wishlists carried to the addon — ${j.raiders} raider(s), ${Object.keys(j.items).length} item(s)${j.priority ? ", with Priority" : ""}, as of ${j.at}`);
-        wishlistStamp.set(file, stamp);
-      } catch (e) { say(`${path.basename(path.dirname(path.dirname(file)))}: wishlists not written — ${e.message}`); }
-    }
-  }
-  /** Whether a World of Warcraft client is running on this PC (Windows: by process name; elsewhere: assume not). */
-  function gameRunning() {
-    if (process.platform !== "win32") return false;
-    try {
-      const out = spawnSync("tasklist", ["/FI", "IMAGENAME eq WowClassic.exe", "/FI", "STATUS eq RUNNING", "/NH"], { encoding: "utf8", windowsHide: true }).stdout ?? "";
-      if (/WowClassic\.exe/i.test(out)) return true;
-      const out2 = spawnSync("tasklist", ["/FI", "IMAGENAME eq Wow.exe", "/NH"], { encoding: "utf8", windowsHide: true }).stdout ?? "";
-      return /Wow\.exe/i.test(out2);
-    } catch { return false; }
-  }
   /**
-   * Replace (or add) the top-level `["wishlists"]` block of the addon's saved variables with the site's list, leaving
-   * every other byte alone. The file the game writes is flat: each top-level key starts at column zero as
-   * `["key"] = {` and its block ends at the next column-zero `},`. Returns whether the file changed.
+   * The wishlists as Lua: at, raiders, priority, items = { [itemId] = { { main, rank }, … } }. A row is { main, rank },
+   * or { main, rank, prio } with the raider's Priority (1.9.0), or { main, rank, prio-or-false, via } under a token or
+   * a recipe, `via` naming what was actually wishlisted — false keeps the row a plain sequence.
    */
-  function writeWishlistsInto(file, j) {
-    const luaStr = (s) => '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"';
-    // A row is { main, rank }, or { main, rank, prio } with the raider's Priority (1.9.0), or { main, rank, prio-or-false,
-    // via } under a token or a recipe, `via` naming what was actually wishlisted — false keeps the row a plain sequence.
+  function wishlistsLua(j) {
     const num = (x) => (x === null || x === undefined || !Number.isFinite(Number(x)) ? null : Number(x));
     const lines = [`["at"] = ${luaStr(j.at ?? "")},`, `["raiders"] = ${Number(j.raiders) || 0},`, `["priority"] = ${j.priority ? "true" : "false"},`, `["items"] = {`];
     for (const [id, who] of Object.entries(j.items)) {
@@ -473,33 +478,7 @@ async function main() {
       lines.push(`},`);
     }
     lines.push(`},`);
-    return writeBlockInto(file, "wishlists", lines);
-  }
-  /**
-   * Replace (or add) one top-level block `["<key>"] = { … },` of the addon's saved variables with `inner` (the
-   * lines between the braces), leaving every other byte alone. The file the game writes is flat: each top-level
-   * key starts at column zero as `["key"] = {` and its block ends at the next column-zero `},` that is followed
-   * by the next top-level STRING key `["…"]` or by the file's last `}` — the blocks written here use only bare
-   * `[123]` and `{` lines at column zero inside, never a `["…"]` one, so nothing inside ends the block early.
-   * Returns whether the file changed.
-   */
-  function writeBlockInto(file, key, inner) {
-    const text = fs.readFileSync(file, "utf8");
-    const nl = text.includes("\r\n") ? "\r\n" : "\n";
-    // Inner string keys (`["id"] = …`) sit at column zero too, so they are indented by one tab: the game reads
-    // tabs and spaces alike, and the terminator rule below only looks at column zero.
-    const block = [`["${key}"] = {`, ...inner.map((l) => (l.startsWith(`["`) ? "\t" + l : l)), `},`].join(nl) + nl;
-    const re = new RegExp(`^\\["${key}"\\] = \\{\\r?\\n[\\s\\S]*?^\\},\\r?\\n(?=\\["|\\}\\r?\\n?$)`, "m");
-    let out;
-    if (re.test(text)) out = text.replace(re, block);
-    else {
-      const end = text.lastIndexOf(nl + "}");
-      if (end < 0) throw new Error("the file does not end the way the game writes it");
-      out = text.slice(0, end + nl.length) + block + text.slice(end + nl.length);
-    }
-    if (out === text) return false;
-    fs.writeFileSync(file, out);
-    return true;
+    return lines;
   }
 }
 
