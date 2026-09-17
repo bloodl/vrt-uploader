@@ -12,7 +12,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.12.0"; // 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.12.1"; // 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -273,30 +273,42 @@ async function main() {
     if (!files.length) return;
     cfg.sent = cfg.sent ?? {};
     let posted = 0;
-    for (const file of files) {
-      let db = null;
-      try { db = parseGlobal(fs.readFileSync(file, "utf8"), "VortexRaidToolDB"); } catch { continue; }
+    // Every file read once; then one reading per character (1.12.1): a PC with two accounts holds a character's own
+    // reading on one and a copy heard over the guild channel on the other, with different stamps, and until now each
+    // look reported whichever came second — turn and turn about, a fresh report for the site to file every half
+    // minute (2026-09-17: the bot fell behind Discord filing them). The character's own reading wins; else the newest.
+    const dbs = new Map();
+    for (const file of files) { try { dbs.set(file, parseGlobal(fs.readFileSync(file, "utf8"), "VortexRaidToolDB")); } catch { /* not readable this look */ } }
+    const picked = new Map();
+    const stampOf = (m) => `${m.resistAt ?? ""}|${m.recipesAt ?? ""}`;
+    for (const [file, db] of dbs) {
       for (const [character, mine] of Object.entries(db?.collect ?? {})) {
         if (!mine || typeof mine !== "object" || character === "version") continue;
-        const was = cfg.sent[character] ?? {};
-        const t = target({ version: mine.version, flavour: flavourOf(file) });
-        const post = async (path, body, stamp, what) => {
-          if (!stamp || was[what] === stamp) return; // nothing new since the last run
-          if (refused.get(`${character}:${what}`) === stamp) return; // said no to this very scan already
-          const r = await fetch(`${t.server}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: t.token, by: cfg.by, character, version: mine.version ?? null, realm: mine.realm ?? null, ...body }) });
-          const j = await r.json().catch(() => ({}));
-          if (!r.ok) refused.set(`${character}:${what}`, stamp);
-          if (r.status === 409 && refusedLine(character, j, t)) { say(refusedLine(character, j, t)); return; }
-          if (r.status === 404) { say(`${character}: not on ${t.routed ? t.guild + "'s" : "the"} roster and not in its guild list, so the addon's ${what} were not filed`); return; }
-          if (!r.ok) { say(`${character}: the bot refused the addon's ${what} (${j.error ?? `HTTP ${r.status}`})`); return; }
-          cfg.sent[character] = { ...(cfg.sent[character] ?? {}), [what]: stamp };
-          posted++;
-          if (what === "gear") say(`${character}: resistance gear filed${j.guild ? " (in the guild, not on the roster — an officer can link it to a main)" : ""} — ${Object.entries(j.sets ?? {}).map(([k, v]) => `${k} ${v}`).join(", ") || "nothing found"}`);
-          else say(`${character}: ${j.added} new recipe(s)${j.known ? `, ${j.known} already known` : ""}${j.refused?.length ? `, ${j.refused.length} not recognised` : ""}`);
-        };
-        if (mine.resist && Object.keys(mine.resist).length) await post("/api/resist/report", { sets: mine.resist, seen: list(mine.seen) }, mine.resistAt, "gear");
-        if (mine.recipes && Object.keys(mine.recipes).length) await post("/api/recipes/report", { professions: mine.recipes, via: mine.via ?? null }, mine.recipesAt, "recipes");
+        const cur = picked.get(character);
+        if (!cur || (mine.own && !cur.mine.own) || (!!mine.own === !!cur.mine.own && stampOf(mine) > stampOf(cur.mine))) picked.set(character, { mine, file });
       }
+    }
+    for (const [character, { mine, file }] of picked) {
+      const was = cfg.sent[character] ?? {};
+      const t = target({ version: mine.version, flavour: flavourOf(file) });
+      const post = async (path, body, stamp, what) => {
+        if (!stamp || was[what] === stamp) return; // nothing new since the last run
+        if (refused.get(`${character}:${what}`) === stamp) return; // said no to this very scan already
+        const r = await fetch(`${t.server}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: t.token, by: cfg.by, character, version: mine.version ?? null, realm: mine.realm ?? null, ...body }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) refused.set(`${character}:${what}`, stamp);
+        if (r.status === 409 && refusedLine(character, j, t)) { say(refusedLine(character, j, t)); return; }
+        if (r.status === 404) { say(`${character}: not on ${t.routed ? t.guild + "'s" : "the"} roster and not in its guild list, so the addon's ${what} were not filed`); return; }
+        if (!r.ok) { say(`${character}: the bot refused the addon's ${what} (${j.error ?? `HTTP ${r.status}`})`); return; }
+        cfg.sent[character] = { ...(cfg.sent[character] ?? {}), [what]: stamp };
+        posted++;
+        if (what === "gear") say(`${character}: resistance gear filed${j.guild ? " (in the guild, not on the roster — an officer can link it to a main)" : ""} — ${Object.entries(j.sets ?? {}).map(([k, v]) => `${k} ${v}`).join(", ") || "nothing found"}`);
+        else say(`${character}: ${j.added} new recipe(s)${j.known ? `, ${j.known} already known` : ""}${j.refused?.length ? `, ${j.refused.length} not recognised` : ""}`);
+      };
+      if (mine.resist && Object.keys(mine.resist).length) await post("/api/resist/report", { sets: mine.resist, seen: list(mine.seen) }, mine.resistAt, "gear");
+      if (mine.recipes && Object.keys(mine.recipes).length) await post("/api/recipes/report", { professions: mine.recipes, via: mine.via ?? null }, mine.recipesAt, "recipes");
+    }
+    for (const [file, db] of dbs) {
       // The guild roster as the game lists it (addon 0.5.3): one snapshot per guild, sent once per read. The site
       // files nothing from it by itself — it shows the officers which characters it does not know.
       for (const [guild, gr] of Object.entries(db?.guildRoster ?? {})) {
