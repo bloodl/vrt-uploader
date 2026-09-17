@@ -39,6 +39,12 @@ asks whether to start with Windows. After that it runs by itself.
 Windows shows "Windows protected your PC" the first few times an exe with a new certificate runs; "More info", then
 "Run anyway". [Code signing](#code-signing) says what the signature tells you and how to check it.
 
+**It keeps itself current** (1.12). Once an hour it asks the site which build is current; a newer one is downloaded
+beside the running file, checked against the SHA-256 the site publishes, started with the same settings, and the
+old copy leaves — the new file takes the old one's name and logon entry, so nothing changes for you, and the log
+says "updated to …". A download that fails or does not match its hash is not installed. `--no-update` turns this
+off; `--check-update` asks now.
+
 ## Options
 
 | option | what it does |
@@ -58,6 +64,8 @@ Windows shows "Windows protected your PC" the first few times an exe with a new 
 | `--reset` | forget the saved settings |
 | `--home <dir>` | keep settings and log in this folder instead of the user profile |
 | `--quiet` | no questions and no window; the log is the only voice (what the logon entry passes) |
+| `--check-update` | ask the site for a newer build now, not at the next hourly check |
+| `--no-update` | never ask for a newer build |
 | `--version`, `--help` | |
 
 ## Privacy
