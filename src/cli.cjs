@@ -7,11 +7,12 @@
 // site, keeps watching. First run finds the guild or asks for its upload code;
 // after that it just works.
 const readline = require("node:readline");
+const crypto = require("node:crypto"); // the update's hash check (1.12.0)
 const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.11.1"; // 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.12.0"; // 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -50,6 +51,8 @@ if (has("--help") || has("-h")) {
   --reset               forget the saved settings
   --home <dir>          keep settings and log in this folder instead of the user profile
   --quiet               no questions and no window — the log is the only voice (what the logon entry passes)
+  --check-update        ask the hub for a newer build now (it is asked once an hour anyway) and install it
+  --no-update           never fetch a newer build
 Settings: ${cfgFile}
 Log:      ${logFile}`);
   process.exit(0);
@@ -89,11 +92,20 @@ async function main() {
   const INBOX_EVERY = 120; // seconds between asks of the site
   const inboxStamp = new Map(); // per addon folder: what was last written, so an unchanged site writes nothing
   const inboxWritten = new Map(); // per addon folder: the stamp line the last write carried, checked against the file on disk
+  const UPDATE_EVERY = 60 * 60 * 1000; // the update check's state, up here for the same reason (--check-update runs before the loop)
+  let updateAskedAt = 0;
   let inboxAskedAt = 0;
   const systemOf = (file) => systemOfFile(file) ?? cfg.system ?? "rclc";
   // Versions before 1.6.0 started at logon from a VBScript in the Startup folder — the pattern antivirus heuristics
   // flag. One that is still there is moved to the Run list, once, and the move is written to the log.
   if (process.platform === "win32" && fs.existsSync(legacyStartup())) installStartup("moved");
+  // Started by the copy this one replaces (--updated-from <its file>, 1.12.0): that copy fetched this file beside its
+  // own, started it, and left. Wait for it to be gone, move its file aside, take its name — Windows lets a running
+  // program be renamed, not overwritten — so the logon entry keeps starting the same path; the file moved aside goes
+  // at the next start. If the old file cannot be moved (a folder this user may not write, a copy still running after
+  // a minute), this copy runs from where it is and the logon entry is pointed at it instead.
+  if (flag("--updated-from")) await takeOver(path.resolve(flag("--updated-from")));
+  sweepOld();
   // A newer download run by hand (1.9.2 — "how do I uninstall the old one and install the new?"): the logon entry
   // still names the file from last time, so it is pointed at this one, the old copy is stopped, and its file named
   // for deletion. Nothing else to do: the settings live in the profile folder, not beside the exe.
@@ -324,6 +336,7 @@ async function main() {
   if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
   if (!has("--no-addon")) try { await carrySessions(); } catch (e) { say(`the council's records could not be carried out: ${e.message}`); }
   if (!has("--no-addon")) try { await carryInbox(true); } catch (e) { say(`the inbox could not be written: ${e.message}`); }
+  if (has("--check-update")) { if (await checkForUpdate(true)) return; } // a newer build has taken over: this copy is leaving
   if (has("--once")) return finish(0);
 
   if (process.platform === "win32" && !quiet && !has("--install-startup") && !has("--no-ask") && !cfg.askedStartup) {
@@ -364,6 +377,45 @@ async function main() {
     if (!has("--no-addon")) try { await carryRequests(); } catch (e) { say(`the hand-outs could not be carried out: ${e.message}`); }
     if (!has("--no-addon")) try { await carrySessions(); } catch (e) { say(`the council's records could not be carried out: ${e.message}`); }
     if (!has("--no-addon")) try { await carryInbox(); } catch (e) { say(`the inbox could not be written: ${e.message}`); }
+    try { await checkForUpdate(); } catch (e) { say(`the update check failed: ${e.message}`); } // once an hour; a newer build takes over and this copy leaves
+  }
+
+  // ---------- keeping itself current (1.12.0) ----------
+  // Furytann, 2026-09-17: "Can we make the uploader auto-update for the others using it?" Once an hour the hub is asked
+  // what the current build is and what its file hashes to; a newer one is fetched beside this file as <name>.new.<ext>,
+  // checked against the hash, and started with the same arguments plus --updated-from <this file>; this copy then
+  // leaves. The new copy does the rest (takeOver, above). A hub without the route, a download that fails, a hash
+  // that differs: nothing changes, and the hour passes. The exe fetches the exe; the script form fetches the script.
+  async function checkForUpdate(force) {
+    if (has("--no-update")) return false;
+    if (!force && Date.now() - updateAskedAt < UPDATE_EVERY) return false;
+    updateAskedAt = Date.now();
+    const kind = isSea ? "exe" : "cjs";
+    let info;
+    try { const r = await fetch(`${hub}/api/uploader/version`); if (!r.ok) return false; info = await r.json(); } catch { return false; }
+    const want = info?.[kind];
+    if (!want?.version || !want.sha256 || !newerVersion(want.version, VERSION)) return false;
+    const me = programFile();
+    const ext = path.extname(me);
+    const fresh = me.slice(0, -ext.length) + ".new" + ext;
+    say(`uploader ${want.version} is out (this is ${VERSION}) — fetching it`);
+    try {
+      const r = await fetch(`${hub}${want.url ?? "/downloads/vrt-uploader." + kind}`);
+      if (!r.ok) { say(`the download answered HTTP ${r.status} — staying on ${VERSION}, trying again later`); return false; }
+      const buf = Buffer.from(await r.arrayBuffer());
+      const sha = crypto.createHash("sha256").update(buf).digest("hex");
+      if (sha !== String(want.sha256).toLowerCase()) { say("the download did not match its published hash — not installed"); return false; }
+      fs.writeFileSync(fresh, buf);
+    } catch (e) { say(`could not fetch the update: ${e.message}`); return false; }
+    // The same arguments, minus this one-off flag and minus the file the previous update came from.
+    const args = [];
+    for (let i = 0; i < argv.length; i++) { if (argv[i] === "--check-update") continue; if (argv[i] === "--updated-from") { i++; continue; } args.push(argv[i]); }
+    args.push("--updated-from", me);
+    const child = spawn(isSea ? fresh : process.execPath, isSea ? args : [fresh, ...args], { detached: true, stdio: "ignore", windowsHide: true, env: { ...process.env, VRT_UPLOADER_HIDDEN: "1" } });
+    child.unref();
+    say(`uploader ${want.version} is taking over — this copy (${VERSION}) stops now`);
+    setTimeout(() => process.exit(0), 500);
+    return true;
   }
 
   // ---------- the loot decision, out of the game (addon 0.10.7) ----------
@@ -571,9 +623,9 @@ function stopProgramAt(exe) {
   const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { encoding: "utf8", windowsHide: true, timeout: 20000 });
   return r.status === 0;
 }
-function installStartup(why) {
+function installStartup(why, exePath = process.execPath) {
   if (process.platform !== "win32") { say("startup install is for Windows; on other systems run it from your own autostart"); return false; }
-  const parts = [process.execPath, ...(isSea ? [] : [path.resolve(process.argv[1])])].map((p) => `"${p}"`);
+  const parts = [exePath, ...(isSea ? [] : [path.resolve(process.argv[1])])].map((p) => `"${p}"`);
   if (flag("--home")) parts.push("--home", `"${path.resolve(flag("--home"))}"`);
   parts.push("--quiet");
   if (!reg("add", RUN_KEY, "/v", RUN_NAME, "/t", "REG_SZ", "/d", parts.join(" "), "/f")) { say("could not write the logon entry (reg.exe said no)"); return false; }
@@ -581,9 +633,43 @@ function installStartup(why) {
   try { fs.unlinkSync(legacyStartup()); hadScript = true; } catch {}
   say(why === "moved" && hadScript
     ? `the logon entry moved from a script in the Startup folder to your user's Run list (${RUN_KEY}\\${RUN_NAME}) — same behaviour, nothing for an antivirus to quarantine`
-    : why === "newer" ? `the logon entry now starts this file (${process.execPath})`
+    : why === "newer" ? `the logon entry now starts this file (${exePath})`
     : `will start at every logon, without a window — the value ${RUN_NAME} in your user's Run list (${RUN_KEY}); --remove-startup takes it out`);
   return true;
+}
+/** This program's own file: the exe, or the script under node. */
+function programFile() { return isSea ? process.execPath : path.resolve(process.argv[1]); }
+/** Whether a is a newer version than b — "1.12.0" against "1.11.1". */
+function newerVersion(a, b) {
+  const pa = String(a).split(".").map((x) => parseInt(x, 10) || 0), pb = String(b).split(".").map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  return false;
+}
+/** The file this copy replaces goes aside and this copy takes its name and its logon entry (1.12.0, see main). */
+async function takeOver(old) {
+  const me = programFile();
+  if (old.toLowerCase() === me.toLowerCase()) return;
+  const ext = path.extname(old);
+  const aside = old.slice(0, -ext.length) + ".old" + ext;
+  let done = false, why = "";
+  for (let i = 0; i < 120 && !done; i++) { // up to a minute for the old copy to leave
+    try { try { fs.unlinkSync(aside); } catch {} fs.renameSync(old, aside); fs.renameSync(me, old); done = true; }
+    catch (e) { why = e.message; await new Promise((r) => setTimeout(r, 500)); }
+  }
+  if (done) {
+    let gone = false; try { fs.unlinkSync(aside); gone = true; } catch { /* the old copy has not quite left: swept at the next start */ }
+    say(`updated to ${VERSION}: ${old} is the new file${gone ? "; the one it replaced is gone" : `; the one it replaced sits beside it as ${path.basename(aside)} until the next start`}`);
+    if (process.platform === "win32" && isSea && exeOfEntry(startupEntry())) installStartup("newer", old);
+  } else {
+    say(`updated to ${VERSION}, but the old file could not be replaced (${why}) — running from ${me} instead`);
+    if (process.platform === "win32" && isSea && exeOfEntry(startupEntry())) installStartup("newer");
+  }
+}
+/** The file an update moved aside — deleted now that nothing runs from it; left alone if something still does. */
+function sweepOld() {
+  const me = programFile();
+  const ext = path.extname(me);
+  for (const f of [me.slice(0, -ext.length).replace(/\.new$/, "") + ".old" + ext, me.slice(0, -ext.length) + ".old" + ext]) { try { fs.unlinkSync(f); } catch {} }
 }
 function removeStartup() {
   if (process.platform !== "win32") { say("nothing to remove: the logon entry is a Windows thing"); return; }
