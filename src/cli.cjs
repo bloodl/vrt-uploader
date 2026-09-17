@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.10.0"; // 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.11.0"; // 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -321,6 +321,7 @@ async function main() {
   try { await upload(); } catch (e) { if (has("--once")) return finish(1); } // each file's failure was said as it happened
   // The addon's own reading is a bonus, never a reason to fail a loot upload.
   if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
+  if (!has("--no-addon")) try { await carrySessions(); } catch (e) { say(`the council's records could not be carried out: ${e.message}`); }
   if (!has("--no-addon")) try { await carryInbox(true); } catch (e) { say(`the inbox could not be written: ${e.message}`); }
   if (has("--once")) return finish(0);
 
@@ -360,7 +361,43 @@ async function main() {
     // WoW writes every addon's file at the same moment, so this is the same logout the loot history came from.
     if (!has("--no-addon")) try { await sendAddonData(); } catch (e) { say(`the addon's data could not be sent: ${e.message}`); }
     if (!has("--no-addon")) try { await carryRequests(); } catch (e) { say(`the hand-outs could not be carried out: ${e.message}`); }
+    if (!has("--no-addon")) try { await carrySessions(); } catch (e) { say(`the council's records could not be carried out: ${e.message}`); }
     if (!has("--no-addon")) try { await carryInbox(); } catch (e) { say(`the inbox could not be written: ${e.message}`); }
+  }
+
+  // ---------- the loot decision, out of the game (addon 0.10.7) ----------
+  // An officer's addon records every RCLootCouncil award it sees — the item, the winner, every candidate with their
+  // response and votes — under db.council, keyed so that several officers' clients recording the same award file it
+  // once. Each record not yet acknowledged is posted for the character that recorded it; the site answers with what
+  // it filed and what it already had, and both are remembered so nothing is sent twice. Read only, like everything
+  // else here: the saved variables are the game's.
+  async function carrySessions() {
+    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    cfg.sessionsSent = cfg.sessionsSent ?? {};
+    for (const file of files) {
+      let db = null;
+      try { db = parseGlobal(fs.readFileSync(file, "utf8"), "VortexRaidToolDB"); } catch { db = null; }
+      const byChar = new Map();
+      for (const [key, rec] of Object.entries(db?.council ?? {})) {
+        if (!rec || typeof rec !== "object" || !rec.winner || cfg.sessionsSent[key]) continue;
+        const who = String(rec.by ?? "").trim();
+        if (!who) continue;
+        if (!byChar.has(who)) byChar.set(who, []);
+        byChar.get(who).push({ key, at: rec.at, item: rec.item, itemId: rec.itemId, boss: rec.boss, winner: rec.winner, response: rec.response, session: rec.session, candidates: list(rec.candidates) });
+      }
+      for (const [character, sessions] of byChar) {
+        const mine = db?.collect?.[character] ?? {};
+        const t = target({ version: mine.version, flavour: flavourOf(file) });
+        const r = await fetch(`${t.server}/api/loot/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: t.token, by: cfg.by, character, version: mine.version ?? null, realm: mine.realm ?? null, sessions }) });
+        const j = await r.json().catch(() => ({}));
+        // A reporter the site does not know (404 naming the roster) or the wrong game (409) is final; anything else — a site
+        // that does not have the route yet, an outage — is tried again at the next look.
+        if (!r.ok) { say(`${character}: the bot refused the council's records (${j.error ?? `HTTP ${r.status}`})`); if ((r.status === 404 && /roster/i.test(j.error ?? "")) || r.status === 409) { for (const s of sessions) cfg.sessionsSent[s.key] = { at: new Date().toISOString().slice(0, 10), result: j.error ?? `HTTP ${r.status}` }; saveCfg(cfg); } continue; }
+        for (const s of sessions) cfg.sessionsSent[s.key] = { at: new Date().toISOString().slice(0, 10), result: (j.keys ?? []).includes(s.key) ? "filed" : "known" };
+        saveCfg(cfg);
+        say(`${t.routed ? "→ " + t.guild + ": " : ""}${character}: ${j.added ?? 0} award(s) the council saw filed${j.known ? `, ${j.known} already known` : ""}${j.refused?.length ? `, ${j.refused.length} refused` : ""} — ${sessions.map((s) => `${s.item} → ${s.winner}`).join(", ")}`);
+      }
+    }
   }
 
   // ---------- bank requests, out of the game (0.10.0) ----------
@@ -414,16 +451,18 @@ async function main() {
       done.add(dir.toLowerCase());
       // Each flavour gets its own edition's data: the TBC client's folder the TBC guild's, the Forever client's the Forever edition's.
       const t = target({ flavour: flavourOf(file) });
-      let wish = null, req = null;
+      let wish = null, req = null, stand = null;
       try { const r = await fetch(`${t.server}/api/wishlists/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.items) wish = j; } } catch { /* the site is away: keep what the file has */ }
       try { const r = await fetch(`${t.server}/api/requests/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.systems) { j.acked = Object.keys(cfg.givenSent ?? {}); req = j; } } } catch { /* same */ }
-      if (!wish && !req) continue;
-      const stamp = JSON.stringify([wish, req]);
+      // The standings for the addon's column in the RCLootCouncil voting frame (1.11.0); an older site has no such route.
+      try { const r = await fetch(`${t.server}/api/standings/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.raiders && Object.keys(j.raiders).length) stand = j; } } catch { /* same */ }
+      if (!wish && !req && !stand) continue;
+      const stamp = JSON.stringify([wish, req, stand]);
       if (inboxStamp.get(dir) === stamp) continue;
       try {
-        fs.writeFileSync(path.join(dir, "Inbox.lua"), inboxLua(wish, req));
+        fs.writeFileSync(path.join(dir, "Inbox.lua"), inboxLua(wish, req, stand));
         inboxStamp.set(dir, stamp);
-        say(`${t.routed ? "→ " + t.guild + ": " : ""}inbox written for the addon — ${wish ? `wishlists of ${wish.raiders} raider(s), ${Object.keys(wish.items).length} item(s)${wish.priority ? " with Priority" : ""}` : "no wishlists"}; ${req ? `${req.systems.reduce((n, s) => n + s.rows.length, 0)} bank request(s) waiting` : "no requests"} — a /reload takes it`);
+        say(`${t.routed ? "→ " + t.guild + ": " : ""}inbox written for the addon — ${wish ? `wishlists of ${wish.raiders} raider(s), ${Object.keys(wish.items).length} item(s)${wish.priority ? " with Priority" : ""}` : "no wishlists"}; ${req ? `${req.systems.reduce((n, s) => n + s.rows.length, 0)} bank request(s) waiting` : "no requests"}; ${stand ? `the standings of ${stand.count} raider(s) for the loot council frame` : "no standings"} — a /reload takes it`);
       } catch (e) { say(`${path.basename(path.dirname(dir))}: inbox not written — ${e.message}`); }
     }
   }
@@ -431,13 +470,30 @@ async function main() {
   function luaStr(v) { return '"' + String(v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"'; }
   function luaNum(v) { return (Number.isFinite(Number(v)) ? Number(v) : 0); }
   /** The whole inbox file: one global the addon reads at load, with a stamp of when it was written. */
-  function inboxLua(wish, req) {
+  function inboxLua(wish, req, stand) {
     const stamp = new Date().toLocaleString("sv-SE").slice(0, 16);
     const lines = ["-- Vortex Raid Tool — written by the uploader; the game reads it at every /reload. Do not edit.", "VortexRaidToolInbox = {", `["stamp"] = ${luaStr(stamp)},`];
     if (wish) lines.push(`["wishlists"] = {`, ...wishlistsLua(wish), `},`);
     if (req) lines.push(`["requests"] = {`, ...requestsLua(req), `},`);
+    if (stand) lines.push(`["standings"] = {`, ...standingsLua(stand), `},`);
     lines.push("}", "");
     return lines.join("\n");
+  }
+  /**
+   * The standings as Lua (1.11.0), for the addon's column in the RCLootCouncil voting frame: at, count,
+   * raiders = { [main] = { pos, prio, att, rank, class, last, lastAt } }, names = { [lower-cased character] = main }.
+   */
+  function standingsLua(j) {
+    const s = luaStr, n = luaNum;
+    const lines = [`["at"] = ${s(j.at)},`, `["count"] = ${n(j.count)},`, `["raiders"] = {`];
+    for (const [main, r] of Object.entries(j.raiders ?? {})) {
+      if (!r || typeof r !== "object") continue;
+      lines.push(`[${s(main)}] = { ["pos"] = ${n(r.pos)}, ["prio"] = ${n(r.prio)}, ["att"] = ${n(r.att)}, ["rank"] = ${s(r.rank)}, ["class"] = ${s(r.class)}, ["last"] = ${s(r.last)}, ["lastAt"] = ${s(r.lastAt)} },`);
+    }
+    lines.push(`},`, `["names"] = {`);
+    for (const [name, main] of Object.entries(j.names ?? {})) lines.push(`[${s(name)}] = ${s(main)},`);
+    lines.push(`},`);
+    return lines;
   }
   /** The open queue as Lua: at, acked = { id, … }, systems = { { id, name, unit, units, lockout, rows = { { id, main, character, amount, what, purpose, at, items = { { name, qty, itemId, inBank }, … } }, … } }, … }. */
   function requestsLua(j) {
