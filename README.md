@@ -75,7 +75,9 @@ What leaves your PC, and only to the guild's site:
 - the loot history in the addon files: player names, items, dates, responses, bosses, instances;
 - the in-game addon's readings: resistance gear, known recipes, the guild roster (names and ranks) and the guild
   bank (items and gold), with the character and realm they came from and the addon's version;
-- a name for who uploaded — your Windows user name unless `--by` says otherwise;
+- a name for who uploaded — your Windows user name unless `--by` says otherwise — and, on every request, this
+  program's version and form (exe or script) as its user-agent, so the guild's officers can see who runs it and
+  who is on an old build (1.12.3);
 - when no upload code is given, the player names in the loot history go to the hub so it can tell which guild's
   roster they belong to; nothing else is sent before a guild is found.
 
