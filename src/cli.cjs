@@ -11,7 +11,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.11.0"; // 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.11.1"; // 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : null; };
@@ -88,6 +88,7 @@ async function main() {
   // on 2026-09-16).
   const INBOX_EVERY = 120; // seconds between asks of the site
   const inboxStamp = new Map(); // per addon folder: what was last written, so an unchanged site writes nothing
+  const inboxWritten = new Map(); // per addon folder: the stamp line the last write carried, checked against the file on disk
   let inboxAskedAt = 0;
   const systemOf = (file) => systemOfFile(file) ?? cfg.system ?? "rclc";
   // Versions before 1.6.0 started at logon from a VBScript in the Startup folder — the pattern antivirus heuristics
@@ -458,10 +459,16 @@ async function main() {
       try { const r = await fetch(`${t.server}/api/standings/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.raiders && Object.keys(j.raiders).length) stand = j; } } catch { /* same */ }
       if (!wish && !req && !stand) continue;
       const stamp = JSON.stringify([wish, req, stand]);
-      if (inboxStamp.get(dir) === stamp) continue;
+      // Unchanged since the last write — unless the file on disk is no longer ours: an addon update (CurseForge,
+      // 2026-09-17) replaces Inbox.lua with the empty one the addon ships, and the addon then loads nothing until the
+      // site changes. So the file is looked at, not just remembered: no stamp of ours in it, it is written again.
+      const onDisk = (() => { try { return /\["stamp"\] = "([^"]*)"/.exec(fs.readFileSync(path.join(dir, "Inbox.lua"), "utf8"))?.[1] ?? null; } catch { return null; } })();
+      if (inboxStamp.get(dir) === stamp && onDisk && onDisk === inboxWritten.get(dir)) continue;
       try {
-        fs.writeFileSync(path.join(dir, "Inbox.lua"), inboxLua(wish, req, stand));
+        const text = inboxLua(wish, req, stand);
+        fs.writeFileSync(path.join(dir, "Inbox.lua"), text);
         inboxStamp.set(dir, stamp);
+        inboxWritten.set(dir, /\["stamp"\] = "([^"]*)"/.exec(text)?.[1] ?? null);
         say(`${t.routed ? "→ " + t.guild + ": " : ""}inbox written for the addon — ${wish ? `wishlists of ${wish.raiders} raider(s), ${Object.keys(wish.items).length} item(s)${wish.priority ? " with Priority" : ""}` : "no wishlists"}; ${req ? `${req.systems.reduce((n, s) => n + s.rows.length, 0)} bank request(s) waiting` : "no requests"}; ${stand ? `the standings of ${stand.count} raider(s) for the loot council frame` : "no standings"} — a /reload takes it`);
       } catch (e) { say(`${path.basename(path.dirname(dir))}: inbox not written — ${e.message}`); }
     }

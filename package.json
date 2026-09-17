@@ -1,6 +1,6 @@
 {
   "name": "vrt-uploader",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "Carries a raid's loot history and the Vortex Raid Tool addon's readings from the loot master's PC to the guild's Vortex Raid Tool site",
   "license": "MIT",
   "author": "Furytann",
