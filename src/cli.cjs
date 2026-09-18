@@ -12,7 +12,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.12.3"; // 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.12.4"; // 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 // Every request says which build this is and who runs it (1.12.3): the site keeps a note per uploader — version,
 // heard when, what it last did — so an officer sees who runs it and who is behind without asking anyone.
@@ -277,7 +277,7 @@ async function main() {
   const sendAddonData = async () => {
     // The usual folders and the registry find it; a WoW installed somewhere else is found beside the loot
     // file the loot master typed in on the first run — same account, same SavedVariables folder.
-    const beside = (cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua")).filter((f) => { try { return fs.existsSync(f); } catch { return false; } });
+    const beside = (cfg.files ?? []).flatMap((f) => ADDON_SV_NAMES.map((n) => path.join(path.dirname(f), n))).filter((f) => { try { return fs.existsSync(f); } catch { return false; } });
     const files = [...new Map([...findAddonSavedVariables(), ...beside].map((f) => [path.resolve(f).toLowerCase(), f])).values()];
     if (!files.length) return;
     cfg.sent = cfg.sent ?? {};
@@ -446,7 +446,7 @@ async function main() {
   // it filed and what it already had, and both are remembered so nothing is sent twice. Read only, like everything
   // else here: the saved variables are the game's.
   async function carrySessions() {
-    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).flatMap((f) => ADDON_SV_NAMES.map((n) => path.join(path.dirname(f), n)))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
     cfg.sessionsSent = cfg.sessionsSent ?? {};
     for (const file of files) {
       let db = null;
@@ -479,7 +479,7 @@ async function main() {
   // every one not yet acknowledged is posted, and the site's answer — ok, already, gone — is remembered so it is sent
   // once. The saved variables are only ever READ here: see carryInbox for why.
   async function carryRequests() {
-    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).flatMap((f) => ADDON_SV_NAMES.map((n) => path.join(path.dirname(f), n)))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
     cfg.givenSent = cfg.givenSent ?? {};
     for (const file of files) {
       const t = target({ flavour: flavourOf(file) });
@@ -510,14 +510,16 @@ async function main() {
   /** The addon's folder for the game flavour a saved-variables file belongs to, or null when the addon is not installed there. */
   function addonDirOf(svFile) {
     // <WoW>\_anniversary_\WTF\Account\<account>\SavedVariables\VortexRaidTool.lua → <WoW>\_anniversary_\Interface\AddOns\VortexRaidTool
+    // and the Forever addon's file (VortexRaidToolForever.lua) → its own folder, VortexRaidToolForever, in that client.
     const flavourRoot = path.resolve(svFile, "..", "..", "..", "..", ".."); // file → SavedVariables → <account> → Account → WTF → the flavour
-    const dir = path.join(flavourRoot, "Interface", "AddOns", "VortexRaidTool");
-    try { return fs.existsSync(path.join(dir, "VortexRaidTool.toc")) ? dir : null; } catch { return null; }
+    const name = path.basename(svFile).replace(/\.lua$/i, "");
+    const dir = path.join(flavourRoot, "Interface", "AddOns", name);
+    try { return fs.existsSync(path.join(dir, `${name}.toc`)) ? dir : null; } catch { return null; }
   }
   async function carryInbox(force) {
     if (!force && Date.now() - inboxAskedAt < INBOX_EVERY * 1000) return;
     inboxAskedAt = Date.now();
-    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).map((f) => path.join(path.dirname(f), "VortexRaidTool.lua"))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    const files = [...new Map([...findAddonSavedVariables(), ...(cfg.files ?? []).flatMap((f) => ADDON_SV_NAMES.map((n) => path.join(path.dirname(f), n)))].filter((f) => { try { return fs.existsSync(f); } catch { return false; } }).map((f) => [path.resolve(f).toLowerCase(), f])).values()];
     const done = new Set();
     for (const file of files) {
       const dir = addonDirOf(file);

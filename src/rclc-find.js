@@ -60,4 +60,7 @@ export const findSavedVariables = () => savedVariablesFiles((f) => !!systemOfFil
  * read off the items, and the recipes on a trade skill window that happened to be open — and cannot send any of
  * it anywhere itself, so this is how it leaves the PC (docs/addon.md, step 4).
  */
-export const findAddonSavedVariables = () => savedVariablesFiles((f) => /^VortexRaidTool\.lua$/i.test(f));
+// Two addons, one shape: the Anniversary addon's file and the Forever addon's (VortexRaidToolForever.lua, the
+// same VortexRaidToolDB inside) — each in its own client's folder.
+export const ADDON_SV_NAMES = ["VortexRaidTool.lua", "VortexRaidToolForever.lua"];
+export const findAddonSavedVariables = () => savedVariablesFiles((f) => /^VortexRaidTool(Forever)?\.lua$/i.test(f));
