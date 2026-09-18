@@ -55,7 +55,7 @@ off; `--check-update` asks now.
 | `--file <path>` | a SavedVariables `.lua` of one of the loot addons (auto-detected otherwise; repeatable) |
 | `--system <id>` | which addon a `--file` is, when its name does not say: `rclc`, `gargul`, `cepgp`, `monolithdkp`, `communitydkp` |
 | `--realm <name>` | only this realm's characters |
-| `--by <name>` | who the upload is logged as (default: your Windows user name) |
+| `--by <name>` | who the upload is logged as (default: the character the in-game addon reads for; never your Windows user name since 1.12.5) |
 | `--once` | upload once and exit (no watching) |
 | `--no-addon` | skip the in-game addon's resistance gear, recipes and guild bank |
 | `--install-startup` | start at every Windows logon, without a window (a value in your own user's Run list) |
@@ -75,7 +75,8 @@ What leaves your PC, and only to the guild's site:
 - the loot history in the addon files: player names, items, dates, responses, bosses, instances;
 - the in-game addon's readings: resistance gear, known recipes, the guild roster (names and ranks) and the guild
   bank (items and gold), with the character and realm they came from and the addon's version;
-- a name for who uploaded — your Windows user name unless `--by` says otherwise — and, on every request, this
+- a name for who uploaded — the character the in-game addon reads for on this PC (before 1.12.5 it was the Windows
+  user name), or what `--by` says — and, on every request, this
   program's version and form (exe or script) as its user-agent, so the guild's officers can see who runs it and
   who is on an old build (1.12.3);
 - when no upload code is given, the player names in the loot history go to the hub so it can tell which guild's

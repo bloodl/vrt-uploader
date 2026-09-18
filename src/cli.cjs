@@ -12,7 +12,7 @@ const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
 
-const VERSION = "1.12.4"; // 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.12.5"; // 1.12.5: uploads are filed under the character the addon reads for, never the Windows account name (a person's real name, as often as not) — chosen once from the addon's saved variables, kept, --by to choose · 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 // Every request says which build this is and who runs it (1.12.3): the site keeps a note per uploader — version,
 // heard when, what it last did — so an officer sees who runs it and who is behind without asking anyone.
@@ -47,7 +47,7 @@ if (has("--help") || has("-h")) {
   --file <path>         a SavedVariables .lua of one of those addons (auto-detected otherwise; repeatable)
   --system <id>         which addon a --file is, when its name doesn't say: rclc, gargul, cepgp, monolithdkp, communitydkp
   --realm <name>        only this realm's characters
-  --by <name>           who the upload is logged as (default: your Windows user name)
+  --by <name>           who the upload is logged as (default: the character the in-game addon reads for)
   --once                upload once and exit (no watching)
   --no-addon            skip the in-game addon's resistance gear, recipes and guild bank
   --install-startup     start at every Windows logon, without a window (a value in your own user's Run list)
@@ -96,6 +96,27 @@ async function main() {
   // const declared further down would still be in its dead zone then (the hub's claim route died of the same thing
   // on 2026-09-16).
   const INBOX_EVERY = 120; // seconds between asks of the site
+  // The in-game addon's saved variables on this PC: the usual folders and the registry find them, and a WoW installed
+  // somewhere else is found beside the loot file the loot master typed in on the first run — same account, same
+  // SavedVariables folder. Read for the by-line (whoRunsIt) and every look (sendAddonData).
+  const addonFiles = () => {
+    const beside = (cfg.files ?? []).flatMap((f) => ADDON_SV_NAMES.map((n) => path.join(path.dirname(f), n))).filter((f) => { try { return fs.existsSync(f); } catch { return false; } });
+    return [...new Map([...findAddonSavedVariables(), ...beside].map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+  };
+  // The character this PC's addon reads for: the newest own reading (the addon marks a character's own collection
+  // `own`; the rest are copies heard over the guild channel). Null until the addon has run on a character.
+  const whoRunsIt = () => {
+    let best = null;
+    for (const file of addonFiles()) {
+      let db; try { db = parseGlobal(fs.readFileSync(file, "utf8"), "VortexRaidToolDB"); } catch { continue; }
+      for (const [character, mine] of Object.entries(db?.collect ?? {})) {
+        if (!mine || typeof mine !== "object" || character === "version" || !mine.own) continue;
+        const stamp = `${mine.resistAt ?? ""}|${mine.recipesAt ?? ""}`;
+        if (!best || stamp > best.stamp) best = { character, stamp };
+      }
+    }
+    return best ? String(best.character).slice(0, 24) : null;
+  };
   const inboxStamp = new Map(); // per addon folder: what was last written, so an unchanged site writes nothing
   const inboxWritten = new Map(); // per addon folder: the stamp line the last write carried, checked against the file on disk
   const UPDATE_EVERY = 60 * 60 * 1000; // the update check's state, up here for the same reason (--check-update runs before the loop)
@@ -210,7 +231,17 @@ async function main() {
       if (found.length > cfg.files.length) console.log(`  (${found.length - cfg.files.length} older file(s) untouched for six months left alone — run once with --file to add one)`);
     }
   }
-  if (!cfg.by) cfg.by = process.env.USERNAME || process.env.USER || "uploader";
+  // The by-line (1.12.5): the name every upload is filed under, shown to every officer on the loot import list
+  // and on Settings → Uploader "Who runs it". Until now it defaulted to the Windows account name — often a
+  // person's real name, or "Gebruiker" — so it is now the character this PC's addon reads for: the newest own
+  // reading in the addon's saved variables, chosen once and kept. --by or uploader.json sets it by hand; a PC
+  // without the addon's data yet says "uploader" until there is some.
+  const osUser = String(process.env.USERNAME || process.env.USER || "").toLowerCase();
+  if (!cfg.by || String(cfg.by).toLowerCase() === osUser || cfg.by === "uploader") {
+    const was = cfg.by;
+    cfg.by = whoRunsIt() ?? "uploader";
+    if (cfg.by !== was) say(`uploads are filed under ${cfg.by}${was ? ` from now on, not ${was}` : ""} (--by <name> to choose another)`);
+  }
   runsAs = String(cfg.by);
   // A guild on more than one game (editions: Anniversary and Forever side by side) has a site per game, and this PC
   // may hold both clients' SavedVariables. Ask the hub which editions the guild has, then send every read of the game
@@ -275,10 +306,7 @@ async function main() {
   // is filed at the next start, and nothing is asked about every thirty seconds in the meantime.
   const refused = new Map();
   const sendAddonData = async () => {
-    // The usual folders and the registry find it; a WoW installed somewhere else is found beside the loot
-    // file the loot master typed in on the first run — same account, same SavedVariables folder.
-    const beside = (cfg.files ?? []).flatMap((f) => ADDON_SV_NAMES.map((n) => path.join(path.dirname(f), n))).filter((f) => { try { return fs.existsSync(f); } catch { return false; } });
-    const files = [...new Map([...findAddonSavedVariables(), ...beside].map((f) => [path.resolve(f).toLowerCase(), f])).values()];
+    const files = addonFiles();
     if (!files.length) return;
     cfg.sent = cfg.sent ?? {};
     let posted = 0;
@@ -296,6 +324,10 @@ async function main() {
         const cur = picked.get(character);
         if (!cur || (mine.own && !cur.mine.own) || (!!mine.own === !!cur.mine.own && stampOf(mine) > stampOf(cur.mine))) picked.set(character, { mine, file });
       }
+    }
+    if (cfg.by === "uploader") { // named "uploader" until the addon had run on a character (1.12.5) — now it has
+      const own = [...picked].filter(([, { mine }]) => mine.own).sort((a, b) => stampOf(b[1].mine).localeCompare(stampOf(a[1].mine)))[0];
+      if (own) { cfg.by = String(own[0]).slice(0, 24); runsAs = cfg.by; saveCfg(cfg); say(`uploads are filed under ${cfg.by} from now on (--by <name> to choose another)`); }
     }
     for (const [character, { mine, file }] of picked) {
       const was = cfg.sent[character] ?? {};
