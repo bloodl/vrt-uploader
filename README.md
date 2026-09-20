@@ -25,9 +25,11 @@ what is new, and keeps watching. This repository is the complete source of what 
 
 **Windows:** download `vrt-uploader.exe` from the
 [latest release](https://github.com/bloodl/vrt-uploader/releases/latest) and run it. Your guild's Settings page on
-the site links the same file. **Keep the file where it can stay: it is the program.** It installs nothing — the
-file you downloaded is what runs after every logon — so put it in a folder of its own (not Downloads) before the
-first run, and do not delete it afterwards.
+the site links the same file. **Put it in a folder of its own before the first run, and keep that folder.** It
+installs nothing: `vrt-uploader.exe` is a launcher that never changes — on the first run it fetches the program,
+`vrt-uploader.cjs`, beside itself (checked against the SHA-256 the hub publishes) and keeps that file current by
+itself. The two files in that folder are what runs after every logon; delete them and the uploads stop. Nothing is
+downloaded or swapped as an executable, ever: an update replaces the `.cjs` only.
 
 **Anything else:** `vrt-uploader.cjs` from the same release runs with Node.js 22 or newer:
 

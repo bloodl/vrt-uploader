@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Builds the uploader: one CommonJS file out of src/ (the loot-addon parser, the SavedVariables finder, the
- * edition rule and the CLI) and, on Windows, a single vrt-uploader.exe with Node inside — Node's single-executable
- * application support, the blob injected with postject.
+ * edition rule and the CLI) — vrt-uploader.cjs, the program — and, on Windows, vrt-uploader.exe: Node with
+ * src/launcher.cjs inside (Node's single-executable application support, the blob injected with postject), which
+ * runs the program from beside itself. The exe never changes between releases; an update replaces the .cjs.
  *
  *   npm run build              bundle + exe (Windows)          npm run build:bundle    bundle only, any platform
  *   --out <dir>                where to write (default dist/)
@@ -94,16 +95,21 @@ if (process.platform === "win32" && !argv.includes("--no-exe")) {
   });
   console.log(`version resource: ${v4}, icon set`);
 
-  fs.writeFileSync(seaCfg, JSON.stringify({ main: cjs, output: blob, disableExperimentalSEAWarning: true }, null, 2));
+  // The launcher is the exe's main: a few lines that run vrt-uploader.cjs from beside the exe (or fetch it from the
+  // hub once, hash-checked, when none is there). The program itself is never inside the exe.
+  const launcher = path.join(out, "launcher.cjs");
+  fs.copyFileSync(path.join(src, "launcher.cjs"), launcher);
+  execFileSync(process.execPath, ["--check", launcher]);
+  fs.writeFileSync(seaCfg, JSON.stringify({ main: launcher, output: blob, disableExperimentalSEAWarning: true }, null, 2));
   execFileSync(process.execPath, ["--experimental-sea-config", seaCfg], { stdio: "inherit" });
   const postject = path.join(root, "node_modules", "postject", "dist", "cli.js");
   if (!fs.existsSync(postject)) throw new Error("postject is not installed — npm ci first");
   execFileSync(process.execPath, [postject, exe, "NODE_SEA_BLOB", blob, "--sentinel-fuse", "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"], { stdio: "inherit" });
-  fs.rmSync(seaCfg); fs.rmSync(blob);
+  fs.rmSync(seaCfg); fs.rmSync(blob); fs.rmSync(launcher);
   console.log(`checksum: 0x${fixChecksum(exe).toString(16)}`);
   if (isSigned(exe)) throw new Error("the exe still carries a certificate table");
 
-  const said = execFileSync(exe, ["--version"], { encoding: "utf8" }).trim();
+  const said = execFileSync(exe, ["--version"], { encoding: "utf8", env: { ...process.env, VRT_PROGRAM: cjs } }).trim(); // through the launcher, on the bundle just built
   if (said !== `vrt-uploader ${version}`) throw new Error(`the exe answers "${said}", expected "vrt-uploader ${version}"`);
   console.log(`exe: ${exe} (${(fs.statSync(exe).size / 1048576).toFixed(0)} MB) → ${said}`);
   files.push(exe);

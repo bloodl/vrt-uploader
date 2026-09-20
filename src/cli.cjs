@@ -11,8 +11,12 @@ const crypto = require("node:crypto"); // the update's hash check (1.12.0)
 const { spawn, spawnSync } = require("node:child_process");
 let isSea = false; // running as the single executable (vrt-uploader.exe) or as a script under node?
 try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script, then */ }
+// Under the launcher (1.13.0): vrt-uploader.exe is a launcher that never changes and runs this file, vrt-uploader.cjs,
+// from beside itself — so an update replaces the .cjs and never an exe (launcher.cjs says why). A 1.12.x exe carried
+// the program inside and swapped executables; it updates itself into the launcher once and is then this.
+const underLauncher = isSea && !!process.env.VRT_LAUNCHER;
 
-const VERSION = "1.12.6"; // 1.12.6: says, when it registers itself, that the downloaded file is the program and must be kept · 1.12.5: uploads are filed under the character the addon reads for, never the Windows account name (a person's real name, as often as not) — chosen once from the addon's saved variables, kept, --by to choose · 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.13.0"; // 1.13.0: the exe is a launcher that never changes; the program is vrt-uploader.cjs beside it, and an update replaces that file — no executable is ever downloaded or swapped again · 1.12.6: says, when it registers itself, that the downloaded file is the program and must be kept · 1.12.5: uploads are filed under the character the addon reads for, never the Windows account name (a person's real name, as often as not) — chosen once from the addon's saved variables, kept, --by to choose · 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 // Every request says which build this is and who runs it (1.12.3): the site keeps a note per uploader — version,
 // heard when, what it last did — so an officer sees who runs it and who is behind without asking anyone.
@@ -56,7 +60,8 @@ if (has("--help") || has("-h")) {
   --reset               forget the saved settings
   --home <dir>          keep settings and log in this folder instead of the user profile
   --quiet               no questions and no window — the log is the only voice (what the logon entry passes)
-  --check-update        ask the hub for a newer build now (it is asked once an hour anyway) and install it
+  --check-update        ask the hub for a newer build now (it is asked once an hour anyway) and install it — the
+                        program file (vrt-uploader.cjs) beside the exe is what changes; the exe itself never does
   --no-update           never fetch a newer build
 Settings: ${cfgFile}
 Log:      ${logFile}`);
@@ -443,7 +448,7 @@ async function main() {
     if (has("--no-update")) return false;
     if (!force && Date.now() - updateAskedAt < UPDATE_EVERY) return false;
     updateAskedAt = Date.now();
-    const kind = isSea ? "exe" : "cjs";
+    const kind = (isSea && !underLauncher) ? "exe" : "cjs"; // the launcher's program is the script; only a 1.12 exe fetches an exe
     let info;
     try { const r = await fetch(`${hub}/api/uploader/version`); if (!r.ok) return false; info = await r.json(); } catch { return false; }
     const want = info?.[kind];
@@ -464,7 +469,12 @@ async function main() {
     const args = [];
     for (let i = 0; i < argv.length; i++) { if (argv[i] === "--check-update") continue; if (argv[i] === "--updated-from") { i++; continue; } args.push(argv[i]); }
     args.push("--updated-from", me);
-    const child = spawn(isSea ? fresh : process.execPath, isSea ? args : [fresh, ...args], { detached: true, stdio: "ignore", windowsHide: true, env: { ...process.env, VRT_UPLOADER_HIDDEN: "1" } });
+    // Under the launcher the fresh script is started through the launcher itself (VRT_PROGRAM names it); a 1.12 exe
+    // starts the fresh exe; the script under node starts node on the fresh script.
+    const env = { ...process.env, VRT_UPLOADER_HIDDEN: "1" };
+    if (underLauncher) env.VRT_PROGRAM = fresh;
+    const child = underLauncher ? spawn(process.execPath, args, { detached: true, stdio: "ignore", windowsHide: true, env })
+      : spawn(isSea ? fresh : process.execPath, isSea ? args : [fresh, ...args], { detached: true, stdio: "ignore", windowsHide: true, env });
     child.unref();
     say(`uploader ${want.version} is taking over — this copy (${VERSION}) stops now`);
     setTimeout(() => process.exit(0), 500);
@@ -692,11 +702,16 @@ function installStartup(why, exePath = process.execPath) {
     : `will start at every logon, without a window — the value ${RUN_NAME} in your user's Run list (${RUN_KEY}); --remove-startup takes it out`);
   // The file people downloaded IS the program (nothing is installed anywhere else): one deleted from Downloads is
   // an uploader that silently stops (Furytann, 2026-09-20).
-  if (why !== "moved" && why !== "newer") say(`KEEP THIS FILE: ${exePath} is the program that runs at every logon — nothing else was installed. Delete it and the uploads stop.`);
+  if (why !== "moved" && why !== "newer") say(underLauncher
+    ? `KEEP THESE FILES: ${exePath} and vrt-uploader.cjs beside it are the program that runs at every logon — nothing else was installed. Delete them and the uploads stop.`
+    : `KEEP THIS FILE: ${exePath} is the program that runs at every logon — nothing else was installed. Delete it and the uploads stop.`);
   return true;
 }
-/** This program's own file: the exe, or the script under node. */
-function programFile() { return isSea ? process.execPath : path.resolve(process.argv[1]); }
+/** This program's own file: the script beside the launcher (or the fresh one an update started, VRT_PROGRAM), the exe of a 1.12 build, or the script under node. */
+function programFile() {
+  if (underLauncher) return process.env.VRT_PROGRAM && fs.existsSync(process.env.VRT_PROGRAM) ? path.resolve(process.env.VRT_PROGRAM) : path.join(path.dirname(process.execPath), "vrt-uploader.cjs");
+  return isSea ? process.execPath : path.resolve(process.argv[1]);
+}
 /** Whether a is a newer version than b — "1.12.0" against "1.11.1". */
 function newerVersion(a, b) {
   const pa = String(a).split(".").map((x) => parseInt(x, 10) || 0), pb = String(b).split(".").map((x) => parseInt(x, 10) || 0);
@@ -708,7 +723,9 @@ function newerVersion(a, b) {
  * "left" when the program has been started again under its proper name and this process is on its way out (1.12.2).
  */
 async function takeOver(old) {
-  const me = programFile();
+  // The exe of a 1.12.x copy that fetched this launcher: the launcher takes its name (the program sits beside it);
+  // otherwise the file this copy runs from — the script, or an old-style exe.
+  const me = path.extname(old).toLowerCase() === ".exe" ? process.execPath : programFile();
   // A copy that took over under 1.12.0 or 1.12.1 kept running under the path it was started from (…new.exe) after
   // its file was renamed, and names that path as the one to replace: the file is the properly named one beside it.
   if (!fs.existsSync(old)) { const proper = me.replace(/(\.new)+(\.[^.\\/]+)$/, "$2"); if (proper !== me && fs.existsSync(proper)) old = proper; }
@@ -723,26 +740,33 @@ async function takeOver(old) {
   if (done) {
     let gone = false; try { fs.unlinkSync(aside); gone = true; } catch { /* the old copy has not quite left: swept at the next start */ }
     say(`updated to ${VERSION}: ${old} is the new file${gone ? "; the one it replaced is gone" : `; the one it replaced sits beside it as ${path.basename(aside)} until that copy has left`}`);
-    if (process.platform === "win32" && isSea && exeOfEntry(startupEntry())) installStartup("newer", old);
+    const exeTaken = path.extname(old).toLowerCase() === ".exe";
+    if (process.platform === "win32" && exeTaken && exeOfEntry(startupEntry())) installStartup("newer", old);
     if (isSea) { // the same arguments, minus the hand-over flag; the new process sweeps the file moved aside
       const args = [];
       for (let i = 0; i < argv.length; i++) { if (argv[i] === "--updated-from") { i++; continue; } args.push(argv[i]); }
-      const child = spawn(old, args, { detached: true, stdio: "ignore", windowsHide: true, env: { ...process.env, VRT_UPLOADER_HIDDEN: "1" } });
+      // Under the launcher: the launcher again, under its proper name, on the program file that now has its proper
+      // name too (VRT_PROGRAM dropped); a 1.12 exe: the proper exe.
+      const env = { ...process.env, VRT_UPLOADER_HIDDEN: "1" };
+      delete env.VRT_PROGRAM;
+      const child = spawn(exeTaken ? old : process.execPath, args, { detached: true, stdio: "ignore", windowsHide: true, env });
       child.unref();
       setTimeout(() => process.exit(0), 500);
       return "left";
     }
   } else {
     say(`updated to ${VERSION}, but the old file could not be replaced (${why}) — running from ${me} instead`);
-    if (process.platform === "win32" && isSea && exeOfEntry(startupEntry())) installStartup("newer");
+    if (process.platform === "win32" && isSea && !underLauncher && exeOfEntry(startupEntry())) installStartup("newer");
   }
 }
 /** The file an update moved aside — deleted now that nothing runs from it; left alone if something still does. */
 function sweepOld(again = [5000, 30000, 120000]) {
-  const me = programFile();
-  const ext = path.extname(me);
   let left = false;
-  for (const f of [me.slice(0, -ext.length).replace(/\.new$/, "") + ".old" + ext, me.slice(0, -ext.length) + ".old" + ext]) { try { fs.unlinkSync(f); } catch (e) { if (e.code !== "ENOENT") left = true; } }
+  const mine = underLauncher ? [programFile(), process.execPath] : [programFile()]; // the script's leftovers, and the exe's from a 1.12 hand-over
+  for (const me of mine) {
+    const ext = path.extname(me);
+    for (const f of [me.slice(0, -ext.length).replace(/\.new$/, "") + ".old" + ext, me.slice(0, -ext.length) + ".old" + ext]) { try { fs.unlinkSync(f); } catch (e) { if (e.code !== "ENOENT") left = true; } }
+  }
   // The copy moved aside leaves half a second after starting this one — a file still in use is tried again shortly.
   if (left && again.length) setTimeout(() => sweepOld(again.slice(1)), again[0]).unref();
 }
