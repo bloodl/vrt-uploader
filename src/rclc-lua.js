@@ -144,6 +144,10 @@ export function rowsFromSavedVariables(luaText, realmFilter = "") {
           subtype: SUBTYPES[e.iClass]?.[e.iSubClass] ?? "",
           equiploc: "",
           note: "",
+          // RCLootCouncil's own entry and the faction-realm it sits under (uploader 1.15.0): the site hands them back,
+          // exactly as they were, to the PCs whose history lacks this award (src/rclc-sync.js).
+          raw: e,
+          realmKey,
         });
       }
     }

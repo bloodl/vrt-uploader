@@ -16,7 +16,7 @@ try { isSea = require("node:sea").isSea(); } catch { /* an older node: a script,
 // the program inside and swapped executables; it updates itself into the launcher once and is then this.
 const underLauncher = isSea && !!process.env.VRT_LAUNCHER;
 
-const VERSION = "1.14.1"; // 1.14.1: the standings carry why a raider is off the board (the attendance bar, auto-inactive, the signup gate) for the council column · 1.14.0: the guild's recipes ride into the addon's inbox (the site's union, for the clients that lack them), and a record the addon took from the site or a relay is never sent back · 1.13.0: the exe is a launcher that never changes; the program is vrt-uploader.cjs beside it, and an update replaces that file — no executable is ever downloaded or swapped again · 1.12.6: says, when it registers itself, that the downloaded file is the program and must be kept · 1.12.5: uploads are filed under the character the addon reads for, never the Windows account name (a person's real name, as often as not) — chosen once from the addon's saved variables, kept, --by to choose · 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
+const VERSION = "1.15.0"; // 1.15.0: both ways — the guild's loot history comes back into RCLootCouncil: the awards the site holds and this PC's RCLootCouncil history lacks (a raid missed, or looted on another computer) go into the addon's inbox, and the addon adds them at the next /reload; the upload carries each RCLootCouncil entry whole · 1.14.1: the standings carry why a raider is off the board (the attendance bar, auto-inactive, the signup gate) for the council column · 1.14.0: the guild's recipes ride into the addon's inbox (the site's union, for the clients that lack them), and a record the addon took from the site or a relay is never sent back · 1.13.0: the exe is a launcher that never changes; the program is vrt-uploader.cjs beside it, and an update replaces that file — no executable is ever downloaded or swapped again · 1.12.6: says, when it registers itself, that the downloaded file is the program and must be kept · 1.12.5: uploads are filed under the character the addon reads for, never the Windows account name (a person's real name, as often as not) — chosen once from the addon's saved variables, kept, --by to choose · 1.12.4: reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder — one uploader for both games · 1.12.3: says its version and by-line on every request (the site lists who runs it, on which build, heard when) and at every start · 1.12.2: after an update the program runs under the file's proper name (Task Manager listed vrt-uploader.new.exe until the next logon) · 1.12.1: one report per character — a character read on two of the PC's accounts (its own reading on one, a copy heard over the guild channel on the other) was reported turn and turn about every look · 1.12.0: keeps itself current — once an hour the hub is asked for the newest build, a newer one is fetched beside this file, checked against its published hash, started with the same settings, and takes this file's name and logon entry; --check-update asks now · 1.11.1: the inbox is written again when an addon update replaced the file with the empty one the addon ships · 1.11.0: the standings go into the inbox for the addon's column in the RCLootCouncil voting frame, and the council's record of each award (candidates, responses, votes) comes out of the game to the site, which tells the guild the why · 1.10.0: the site's wishlists and bank requests go into the addon's Inbox.lua (read at every /reload) every two minutes — the saved variables are never written again, only read · 1.9.2: another addon's file than the guild runs is set aside once the site says so; a file that fails never stops the next; the first run hands over to the background at once; a newer download takes over the logon entry from the old file · 1.9.1: every loot file written this half-year is taken, no "which ones?" question · 1.9.0: a wishlist row carries the raider's Priority (and what was wishlisted, under a token or a recipe) when the site sends it · 1.8.0: the guild bank's request queue INTO the addon (as the wishlists) and a Given pressed in game back OUT to the site · 1.7.0: carries the guild's wishlists INTO the addon (written into its saved variables while the game is closed; the addon shows them on item tooltips to ranks that can promote) · 1.6.1: a guild member on nobody's roster entry has their resist gear filed too (the site says so; no 404 line) · 1.6.0: starts at logon from the user's own Run list (no VBScript, no script host), hides its own window through the OS, --uninstall, the exe carries its own name and version · 1.5.4: a recipes package says which character sent it (addon 0.6.0 answers for every character of the account) · 1.1: Gargul, CEPGP, MonolithDKP and CommunityDKP files · 1.2: the in-game addon's gear and recipes · 1.3: the guild bank · 1.3.1: the addon file found beside a typed loot file · 1.4: any raider's PC · 1.5: no code — a guild-named download, or the hub finds the guild · 1.5.1: a refused report is not asked again until the addon has a new one
 const HUB = "https://vortexraidtool.com"; // where the guilds live; --hub for a hub of your own
 // Every request says which build this is and who runs it (1.12.3): the site keeps a note per uploader — version,
 // heard when, what it last did — so an officer sees who runs it and who is behind without asking anyone.
@@ -123,6 +123,13 @@ async function main() {
     return best ? String(best.character).slice(0, 24) : null;
   };
   const inboxStamp = new Map(); // per addon folder: what was last written, so an unchanged site writes nothing
+  // The guild's loot history, back into RCLootCouncil (1.15.0) — state up here for the same reason as the inbox's.
+  const lootSite = new Map(); // server -> { version, awards }: the guild's history as the site last sent it
+  const lootLast = new Map(); // addon folder -> what the last pass found missing, kept through a pass that could not read a file
+  const lootSaid = new Map(); // addon folder -> the count the log last gave, so it speaks when that changes
+  const LOOT_EVERY_PASS = 300; // the newest this many a pass; the rest follow once the game has saved these
+  const seenFile = path.join(cfgDir, "rclc-seen.json");
+  let lootSeen = null; // RCLootCouncil file (resolved, lower-cased) -> Set of every id it has held
   const inboxWritten = new Map(); // per addon folder: the stamp line the last write carried, checked against the file on disk
   const UPDATE_EVERY = 60 * 60 * 1000; // the update check's state, up here for the same reason (--check-update runs before the loop)
   let updateAskedAt = 0;
@@ -580,15 +587,24 @@ async function main() {
       // The guild's recipes as the site knows them (1.14.0): the union of every uploader's carry, handed back so a
       // client shows who can craft what without having been online with them; an older site has no such route.
       try { const r = await fetch(`${t.server}/api/recipes/addon?key=${encodeURIComponent(t.token)}`); if (r.ok) { const j = await r.json(); if (j?.characters && Object.keys(j.characters).length) recipes = j; } } catch { /* same */ }
-      if (!wish && !req && !stand && !recipes) continue;
-      const stamp = JSON.stringify([wish, req, stand, recipes]);
+      // The guild's loot history, back into RCLootCouncil (1.15.0): what this client's RCLootCouncil history lacks.
+      const found = lootFor(file, await siteLoot(t));
+      const loot = found === undefined ? (lootLast.get(dir) ?? null) : found;
+      if (found !== undefined) lootLast.set(dir, found);
+      if (loot && loot.count !== (lootSaid.get(dir) ?? 0)) {
+        if (loot.count) say(`${t.routed ? "→ " + t.guild + ": " : ""}RCLootCouncil history: ${loot.count} award(s) the guild's history has and this PC's lacks${loot.total > loot.count ? ` (the newest ${loot.count} of ${loot.total}; the rest follow once the game has saved these)` : ""} — the addon adds them at the next /reload`);
+        else say(`${t.routed ? "→ " + t.guild + ": " : ""}RCLootCouncil history: this PC's now holds every award the guild's history has`);
+        lootSaid.set(dir, loot.count);
+      }
+      if (!wish && !req && !stand && !recipes && !loot?.count) continue;
+      const stamp = JSON.stringify([wish, req, stand, recipes, loot?.count ? loot.entries.map((e) => e.id) : null, lootSite.get(t.server)?.version ?? null]);
       // Unchanged since the last write — unless the file on disk is no longer ours: an addon update (CurseForge,
       // 2026-09-17) replaces Inbox.lua with the empty one the addon ships, and the addon then loads nothing until the
       // site changes. So the file is looked at, not just remembered: no stamp of ours in it, it is written again.
       const onDisk = (() => { try { return /\["stamp"\] = "([^"]*)"/.exec(fs.readFileSync(path.join(dir, "Inbox.lua"), "utf8"))?.[1] ?? null; } catch { return null; } })();
       if (inboxStamp.get(dir) === stamp && onDisk && onDisk === inboxWritten.get(dir)) continue;
       try {
-        const text = inboxLua(wish, req, stand, recipes);
+        const text = inboxLua(wish, req, stand, recipes, loot?.count ? loot : null);
         fs.writeFileSync(path.join(dir, "Inbox.lua"), text);
         inboxStamp.set(dir, stamp);
         inboxWritten.set(dir, /\["stamp"\] = "([^"]*)"/.exec(text)?.[1] ?? null);
@@ -596,17 +612,112 @@ async function main() {
       } catch (e) { say(`${path.basename(path.dirname(dir))}: inbox not written — ${e.message}`); }
     }
   }
+  // ---------- the guild's loot history, back into RCLootCouncil (1.15.0) ----------
+  // Furytann, 2026-09-24: "Whenever there's been a raid someone with the uploader installed missed (or did from other
+  // computer) their loot history for RCLC should also be updated. So it remains current. Can we do both way?" Up has
+  // always been this uploader's job. Down: the site hands out every award it counts, as the entry RCLootCouncil
+  // writes (/api/loot/sync — asked with ?have=, so an unchanged history costs a word); the ones this PC's
+  // RCLootCouncil files lack go into the addon's inbox, and the addon adds them to RCLootCouncil's history at the
+  // next /reload (0.10.12). An award a file once held and no longer does was deleted in game on purpose and is never
+  // put back — the ids each file has held are kept in rclc-seen.json beside the settings. Only the RCLootCouncil
+  // files this uploader sends, and only those of the client (flavour) whose addon folder the inbox goes to.
+  async function siteLoot(t) {
+    const had = lootSite.get(t.server) ?? null;
+    try {
+      const r = await fetch(`${t.server}/api/loot/sync?key=${encodeURIComponent(t.token)}${had ? `&have=${encodeURIComponent(had.version)}` : ""}`);
+      if (!r.ok) return had?.awards ?? null; // an older site has no such route
+      const j = await r.json();
+      if (j.same && had) return had.awards;
+      if (!Array.isArray(j.awards)) return had?.awards ?? null;
+      lootSite.set(t.server, { version: String(j.version ?? ""), awards: j.awards });
+      return j.awards;
+    } catch { return had?.awards ?? null; }
+  }
+  function flavourRootOf(file) { return path.resolve(file, "..", "..", "..", "..", "..").toLowerCase(); } // …\_anniversary_\WTF\Account\<account>\SavedVariables\x.lua → …\_anniversary_
+  function seenIds() {
+    if (lootSeen) return lootSeen;
+    lootSeen = new Map();
+    try { for (const [file, ids] of Object.entries(JSON.parse(fs.readFileSync(seenFile, "utf8")))) if (Array.isArray(ids)) lootSeen.set(file, new Set(ids.map(String))); } catch { /* none kept yet */ }
+    return lootSeen;
+  }
+  /**
+   * What this client's RCLootCouncil history lacks, for the inbox: { count, total, entries: [{ id, aliases, player,
+   * realm, entry }] }; null when there is nothing to say (no RCLootCouncil file, no answer from the site); undefined
+   * when a file could not be read this pass (the game writing it) — the caller keeps what the last pass found.
+   */
+  function lootFor(svFile, awards) {
+    if (!Array.isArray(awards)) return null;
+    const flavour = flavourRootOf(svFile);
+    const files = (cfg.files ?? []).filter((f) => systemOf(f) === "rclc" && flavourRootOf(f) === flavour);
+    if (!files.length) return null;
+    const seen = seenIds();
+    const held = [];
+    const realms = new Map(); // faction-realm → entries under it, over this client's files
+    let iso = 0, old = 0, grew = false;
+    for (const f of files) {
+      let db;
+      try { db = parseGlobal(fs.readFileSync(f, "utf8"), "RCLootCouncilLootDB"); } catch { return undefined; }
+      const key = path.resolve(f).toLowerCase();
+      const had = seen.get(key) ?? new Set();
+      for (const [realmKey, players] of Object.entries(db?.factionrealm ?? {})) {
+        for (const list of Object.values(players ?? {})) {
+          for (const e of Array.isArray(list) ? list : Object.values(list ?? {})) {
+            if (!e || typeof e !== "object" || e.id == null) continue;
+            if (!had.has(String(e.id))) { had.add(String(e.id)); grew = true; }
+            realms.set(realmKey, (realms.get(realmKey) ?? 0) + 1);
+            if (/^\d{4}\//.test(String(e.date))) iso++; else if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(String(e.date))) old++;
+          }
+        }
+      }
+      seen.set(key, had);
+      held.push(had);
+    }
+    if (grew) { try { fs.writeFileSync(seenFile, JSON.stringify(Object.fromEntries([...seen].map(([k, v]) => [k, [...v]])))); } catch { /* next pass */ } }
+    // Wanted where some file has never held it (nor the award it was folded into): a file that held it and lost it
+    // had it deleted in game, and one that holds it has it.
+    const wanted = awards.filter((a) => a && a.id != null && a.player && a.entry && held.some((h) => ![a.id, ...(a.aliases ?? [])].some((x) => h.has(String(x)))));
+    const biggest = [...realms.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? null;
+    const flat = (x) => String(x ?? "").toLowerCase().replace(/\s+/g, "");
+    const realmFor = (a) => a.realmKey || [...realms.entries()].filter(([k]) => flat(k.split(" - ").slice(1).join(" - ")) === flat(String(a.player).split("-").slice(1).join("-"))).sort((x, y) => y[1] - x[1])[0]?.[0] || biggest;
+    const entries = [];
+    for (const a of wanted.slice(0, LOOT_EVERY_PASS)) {
+      const realm = realmFor(a);
+      if (!realm) continue;
+      const entry = { ...a.entry };
+      // An RCLootCouncil older than 0.24 keeps dd/mm/yy; 1.5 keeps YYYY/MM/DD, the site's form.
+      if (old > iso) { const m = /^(\d{4})\/(\d{2})\/(\d{2})$/.exec(String(entry.date)); if (m) entry.date = `${m[3]}/${m[2]}/${m[1].slice(2)}`; }
+      entries.push({ id: String(a.id), aliases: (a.aliases ?? []).map(String), player: String(a.player), realm, entry });
+    }
+    return { count: entries.length, total: wanted.length, entries };
+  }
+  /** A JavaScript value as Lua: strings, numbers, booleans, lists and keyed tables (an RCLootCouncil entry). */
+  function luaVal(v) {
+    if (typeof v === "boolean") return v ? "true" : "false";
+    if (typeof v === "number") return Number.isFinite(v) ? String(v) : "0";
+    if (typeof v === "string") return luaStr(v);
+    if (Array.isArray(v)) return "{ " + v.map(luaVal).join(", ") + " }";
+    if (v && typeof v === "object") return "{ " + Object.entries(v).filter(([, x]) => x !== null && x !== undefined).map(([k, x]) => `[${luaStr(k)}] = ${luaVal(x)}`).join(", ") + " }";
+    return "nil";
+  }
+  /** The awards for RCLootCouncil as Lua (1.15.0): at, count, entries = { { id, player, realm, aliases = { … }, entry = { … } }, … }. */
+  function lootLua(l) {
+    const lines = [`["at"] = ${luaStr(new Date().toLocaleString("sv-SE").slice(0, 16))},`, `["count"] = ${luaNum(l.count)},`, `["entries"] = {`];
+    for (const e of l.entries) lines.push(`{ ["id"] = ${luaStr(e.id)}, ["player"] = ${luaStr(e.player)}, ["realm"] = ${luaStr(e.realm)}, ["aliases"] = ${luaVal(e.aliases)}, ["entry"] = ${luaVal(e.entry)} },`);
+    lines.push(`},`);
+    return lines;
+  }
   // Function declarations, hoisted: carryInbox runs once before main reaches this line.
   function luaStr(v) { return '"' + String(v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, " ") + '"'; }
   function luaNum(v) { return (Number.isFinite(Number(v)) ? Number(v) : 0); }
   /** The whole inbox file: one global the addon reads at load, with a stamp of when it was written. */
-  function inboxLua(wish, req, stand, recipes) {
+  function inboxLua(wish, req, stand, recipes, loot) {
     const stamp = new Date().toLocaleString("sv-SE").slice(0, 16);
     const lines = ["-- Vortex Raid Tool — written by the uploader; the game reads it at every /reload. Do not edit.", "VortexRaidToolInbox = {", `["stamp"] = ${luaStr(stamp)},`];
     if (wish) lines.push(`["wishlists"] = {`, ...wishlistsLua(wish), `},`);
     if (req) lines.push(`["requests"] = {`, ...requestsLua(req), `},`);
     if (stand) lines.push(`["standings"] = {`, ...standingsLua(stand), `},`);
     if (recipes) lines.push(`["recipes"] = {`, ...recipesLua(recipes), `},`);
+    if (loot) lines.push(`["loot"] = {`, ...lootLua(loot), `},`);
     lines.push("}", "");
     return lines.join("\n");
   }
