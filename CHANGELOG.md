@@ -1,5 +1,62 @@
 # Changes
 
+## 1.15.1 — 2026-10-05
+
+- Each loot file says which game's folder it comes from (`_anniversary_`, `_classic_era_` …). Every World of Warcraft game keeps its own loot history, and one account's files from two games used to land in the same place on the site and overwrite each other. The site now files each game apart and answers a file from a game the guild does not play without filing it; the uploader says once which file it set aside and why.
+- The prompt for a loot file typed by hand names the game's folder (`_anniversary_`), not `_classic_`.
+
+## 1.15.0 — 2026-09-24
+
+- The loot history goes both ways: the awards the guild's history holds and this PC's RCLootCouncil history lacks (a raid missed, or looted on another computer) go into the addon's inbox, and the addon adds them at the next /reload. An award deleted in game is never put back. Each upload carries RCLootCouncil's own entry whole.
+
+## 1.14.1 — 2026-09-21
+
+- The standings carry why a raider is off the board — under the attendance bar, inactive, not signed up — for the addon's column in the loot council's voting frame.
+
+## 1.14.0 — 2026-09-21
+
+- The guild's recipes ride into the addon's inbox as the site knows them, for clients that were never online with a crafter. A record the addon took from the site, or from a guildmate passing it on, is never sent back.
+
+## 1.13.0 — 2026-09-20
+
+- The exe is a launcher that never changes; the program is vrt-uploader.cjs beside it, and an update replaces only that file. No executable is downloaded or swapped any more.
+
+## 1.12.6 — 2026-09-20
+
+- Says, when it registers itself to start with Windows, that the downloaded file is the program and must be kept.
+
+## 1.12.5 — 2026-09-18
+
+- Uploads are filed under the character the addon reads for, never the Windows account name — chosen once from the addon's saved variables and kept; `--by` chooses another.
+
+## 1.12.4 — 2026-09-18
+
+- Reads the Forever addon's saved variables (VortexRaidToolForever.lua) and writes its inbox into that addon's folder: one uploader for both games.
+
+## 1.12.3 — 2026-09-18
+
+- Says its version and by-line on every request (the site lists who runs it, on which build, and when it was last heard from) and at every start.
+
+## 1.12.2 — 2026-09-17
+
+- After an update the program runs under the file's proper name (Task Manager had listed vrt-uploader.new.exe until the next logon).
+
+## 1.12.1 — 2026-09-17
+
+- One report per character: a character read on two of the PC's accounts had been reported turn and turn about at every look.
+
+## 1.12.0 — 2026-09-17
+
+- Keeps itself current: once an hour it asks the hub for the newest build, fetches a newer one beside itself, checks it against its published hash and starts it with the same settings; the new copy takes the old file's name and logon entry. `--check-update` asks now.
+
+## 1.11.1 — 2026-09-17
+
+- The inbox is written again when an addon update replaced it with the empty file the addon ships.
+
+## 1.11.0 — 2026-09-17
+
+- The standings go into the inbox for the addon's column in RCLootCouncil's voting frame, and the council's record of each award (candidates, responses, votes) goes out to the site, which tells the guild the why.
+
 ## 1.10.0 — 2026-09-16
 
 - The site's wishlists and bank requests go into the addon's own Inbox.lua, inside the addon folder of the game flavour the saved variables belong to, every two minutes whenever the site's answer changed — game open or not. The game reads that file at every /reload and never writes it. The saved variables are only ever read from now on: a write into them during a /reload had left them unreadable.
