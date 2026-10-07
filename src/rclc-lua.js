@@ -166,6 +166,8 @@ export const LOOT_ADDONS = {
   cepgp: { label: "CEPGP", file: /^CEPGP\.lua$/i, global: "TRAFFIC" },
   monolithdkp: { label: "MonolithDKP", file: /^MonolithDKP\.lua$/i, global: "MonDKP_Loot" },
   communitydkp: { label: "CommunityDKP", file: /^CommunityDKP\.lua$/i, global: "CommDKP_Loot" },
+  // 1.16.0: its won rolls — kept with the character (rclc-find.js looks there), or the account when its global profile is on.
+  lootreserve: { label: "LootReserve", file: /^LootReserve\.lua$/i, global: "LootReserveCharacterSave" },
 };
 /** System id from a SavedVariables path, or null when it is not a loot addon we read. */
 export function systemOfFile(file) {
@@ -200,7 +202,9 @@ export function rowsFromGargul(luaText, realmFilter = "") {
     if (e.PL) notes.push("PL");
     const item = linkFor(e.itemLink, e.itemID);
     if (!item) continue;
-    rows.push(rowOf({ player: String(e.awardedTo), ...stampOf(e.timestamp), id: `gargul:${e.checksum ?? key}`, item, itemstring: item, response: e.OS ? "Off Spec" : "Best in slot", note: notes.join(", ") }));
+    // 1.16.0: the soft-reserve list it was won from (its id, `vrt-<event>` for a list the guild's own site made) — the
+    // win closes that event's reserve on the site, wherever Gargul's history is filed.
+    rows.push(rowOf({ player: String(e.awardedTo), ...stampOf(e.timestamp), id: `gargul:${e.checksum ?? key}`, item, itemstring: item, response: e.OS ? "Off Spec" : "Best in slot", note: notes.join(", "), ...(e.softresID ? { softres: String(e.softresID) } : {}) }));
   }
   return rows;
 }
@@ -254,9 +258,88 @@ export function rowsFromCepgp(luaText) {
   return rows;
 }
 
+/**
+ * What one of LootReserve's won rolls is — the same read from its saved file here and from its Rolls export on the site
+ * (loot-import.js): a disenchant, or a raid roll (the item handed to someone at random), is free; a roll's phase ("Main
+ * Spec", "Off Spec" …) is its response; else a reserve roll is "Reserved" and any other a "Roll".
+ */
+export const lootReserveAward = ({ disenchant = false, raidRoll = false, reserved = false, phase = "" } = {}) =>
+  disenchant ? { response: "Disenchant", note: "disenchanted" }
+  : raidRoll ? { response: "Free roll", note: "raid roll" }
+  : { response: String(phase ?? "").trim() || (reserved ? "Reserved" : "Roll"), note: reserved ? "reserved" : "rolled" };
+/** A won roll's id, the same from LootReserve's export, its saved file and the uploader: when it started, the item, the winner. */
+export const lootReserveId = (startTime, itemId, player) => `lootreserve:${Math.round(Number(startTime))}:${Number(itemId)}:${String(player).toLowerCase()}`;
+
+/**
+ * LootReserve (1.16.0): the won rolls of its RollHistory — the character's file (LootReserveCharacterSave.Server) or the
+ * account's when its global profile is on (LootReserveGlobalSave.Server.GlobalProfile), read off its Server.lua. A roll:
+ * Item {id, suffix, uniqueID}, StartTime, Players {name = {rolls}}, Winners {names} — an older roll has none, and its
+ * highest roll won, as its own export decides (0 is "not rolled") — Custom (no reserve roll), Disenchant, RaidRoll, and a
+ * Tiered roll's Phases (max + roll/1000: Phases[101 − max]). Each row also carries `at`, the roll's start in ms, for a
+ * reader that dates it on the guild's clock; `rows.skipped` counts the rolls nobody won.
+ */
+export function rowsFromLootReserve(luaText) {
+  const ch = extractGlobal(luaText, "LootReserveCharacterSave"), gl = extractGlobal(luaText, "LootReserveGlobalSave");
+  if (!ch && !gl) throw new Error("no LootReserve table in this file");
+  const hist = ch?.Server?.RollHistory ?? gl?.Server?.GlobalProfile?.RollHistory;
+  if (!hist) throw new Error("no roll history in it yet — LootReserve keeps it with the character, or the account when its global profile is on");
+  const nth = (t, k) => (Array.isArray(t) ? t[k - 1] : t?.[k] ?? t?.[String(k)]);
+  const rows = [];
+  let skipped = 0;
+  for (const roll of listOf(hist)) {
+    const itemId = Number(nth(roll?.Item, 1) ?? roll?.Item?.id);
+    const ts = Number(roll?.StartTime);
+    if (!Number.isInteger(itemId) || itemId <= 0 || !ts) { skipped++; continue; }
+    const players = roll.Players && typeof roll.Players === "object" ? roll.Players : {};
+    const rollsOf = (p) => listOf(players[p]).map(Number);
+    let winners = roll.Winners ? listOf(roll.Winners).map(String) : null;
+    if (!winners) {
+      winners = [];
+      let max = 0;
+      for (const p of Object.keys(players)) for (const n of rollsOf(p)) { if (n > max) { max = n; winners = [p]; } else if (n === max && n > 0 && !winners.includes(p)) winners.push(p); }
+    }
+    if (!winners.length) { skipped++; continue; }
+    const item = linkFor(null, itemId);
+    for (const w of winners) {
+      const player = String(w).split("-")[0].trim();
+      if (!player) continue;
+      const max = roll.Tiered ? Math.floor(Math.max(0, ...rollsOf(w))) : 100;
+      const phase = (Array.isArray(roll.Phases) ? roll.Phases[100 - max] : "") ?? "";
+      const a = lootReserveAward({ disenchant: !!roll.Disenchant, raidRoll: !!roll.RaidRoll, reserved: !roll.Custom && !roll.Disenchant, phase });
+      rows.push(rowOf({ player, ...stampOf(ts), id: lootReserveId(ts, itemId, player), item, itemstring: item, response: a.response, note: a.note, at: ts * 1000 }));
+    }
+  }
+  rows.skipped = skipped;
+  return rows;
+}
+
+/**
+ * A DKP addon's own balances (1.16.0) — MonolithDKP's MonDKP_DKPTable, CommunityDKP's CommDKP_DKPTable (by realm-guild,
+ * then team): [{ name, class, dkp }], the first entry of a name kept; [] for a file without one, or another addon's.
+ */
+export function balancesFromAddon(luaText, system) {
+  const global = system === "monolithdkp" ? "MonDKP_DKPTable" : system === "communitydkp" ? "CommDKP_DKPTable" : null;
+  const table = global ? extractGlobal(luaText, global) : null;
+  if (!table) return [];
+  const out = [], seen = new Set();
+  const walk = (node, depth) => {
+    if (!node || typeof node !== "object" || depth > 4) return;
+    for (const k of Object.keys(node).sort()) {
+      const v = node[k];
+      if (v && typeof v === "object" && v.player != null && Number.isFinite(Number(v.dkp))) {
+        const name = String(v.player).split("-")[0].trim();
+        if (name && !seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push({ name, class: v.class ? String(v.class) : null, dkp: Number(v.dkp) }); }
+      } else if (v && typeof v === "object") walk(v, depth + 1);
+    }
+  };
+  walk(table, 0);
+  return out;
+}
+
 /** Rows for any supported addon file. */
 export function rowsFromAddon(luaText, system = "rclc", realmFilter = "") {
   switch (system) {
+    case "lootreserve": return rowsFromLootReserve(luaText);
     case "gargul": return rowsFromGargul(luaText, realmFilter);
     case "cepgp": return rowsFromCepgp(luaText);
     case "monolithdkp": case "communitydkp": return rowsFromDkp(luaText, system, realmFilter);

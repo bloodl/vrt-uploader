@@ -87,8 +87,18 @@ try { rowsFromSavedVariables("SomeOtherAddonDB = {}"); } catch { threw = true; }
 check("a file without the RCLootCouncil table is refused, not read as empty", threw);
 
 check("file names say which addon wrote them; anything else is not a loot file", systemOfFile("D:/WoW/WTF/Account/A/SavedVariables/RCLootCouncil_Classic.lua") === "rclc" && systemOfFile("x/Gargul.lua") === "gargul" && systemOfFile("x/CEPGP.lua") === "cepgp" && systemOfFile("x/MonolithDKP.lua") === "monolithdkp" && systemOfFile("x/CommunityDKP.lua") === "communitydkp" && !systemOfFile("x/VortexRaidTool.lua") && !systemOfFile("x/Details.lua"));
-check("labels for people, one per addon", addonLabel("rclc") === "RCLootCouncil" && labelOfFile("x/Gargul.lua") === "Gargul" && addonLabel("nope") === "loot addon" && Object.keys(LOOT_ADDONS).length === 5);
+check("labels for people, one per addon — LootReserve the sixth (1.16.0)", addonLabel("rclc") === "RCLootCouncil" && labelOfFile("x/Gargul.lua") === "Gargul" && labelOfFile("x/LootReserve.lua") === "LootReserve" && addonLabel("nope") === "loot addon" && Object.keys(LOOT_ADDONS).length === 6);
 check("the account folder out of a SavedVariables path, either slash", accountOf("D:\\World of Warcraft\\_anniversary_\\WTF\\Account\\12345#1\\SavedVariables\\RCLootCouncil_Classic.lua") === "12345#1" && accountOf("/wow/_anniversary_/WTF/Account/MAIN/SavedVariables/Gargul.lua") === "MAIN");
+
+// 1.16.0: LootReserve's won rolls, a DKP addon's own table, the soft-reserve list a Gargul win came from.
+const { balancesFromAddon, lootReserveId } = await import("../../src/rclc-lua.js");
+const LR = `LootReserveCharacterSave = {\n["Server"] = {\n["RollHistory"] = {\n{ ["Item"] = { 30236, }, ["StartTime"] = 1791230400, ["Players"] = { ["Ann-Realm"] = { 87, }, }, ["Winners"] = { "Ann-Realm", }, },\n{ ["Item"] = { 30239, }, ["StartTime"] = 1791230600, ["Disenchant"] = true, ["Players"] = { ["Dan"] = { 0, }, }, ["Winners"] = { "Dan", }, },\n{ ["Item"] = { 30240, }, ["StartTime"] = 1791230700, ["Players"] = { ["Eve"] = { 0, }, }, },\n},\n},\n}\n`;
+const lr = rowsFromAddon(LR, "lootreserve");
+check("LootReserve: its won rolls — a reserve roll, a disenchant as free; one nobody won left out; ids from the roll itself", lr.map((r) => `${r.player}:${r.response}`).join() === "Ann:Reserved,Dan:Disenchant" && lr.skipped === 1 && lr[0].id === lootReserveId(1791230400, 30236, "Ann"));
+check("…kept with the character: filed per character", accountOf("D:/WoW/_anniversary_/WTF/Account/A1/Realm/Ann/SavedVariables/LootReserve.lua") === "A1-Ann");
+check("a DKP addon's own table, the realm off a name", JSON.stringify(balancesFromAddon(`MonDKP_DKPTable = {\n{ ["player"] = "Cora-Realm", ["class"] = "DRUID", ["dkp"] = 50, },\n}\n`, "monolithdkp")) === JSON.stringify([{ name: "Cora", class: "DRUID", dkp: 50 }]));
+const g = rowsFromAddon(`GargulDB = {\n["AwardHistory"] = {\n["c1"] = { ["checksum"] = "c1", ["itemID"] = 30236, ["awardedTo"] = "Ann-Realm", ["timestamp"] = 1791230400, ["softresID"] = "vrt-AbCd1234" },\n},\n}\n`, "gargul");
+check("Gargul: a win keeps the soft-reserve list it came from", g[0]?.softres === "vrt-AbCd1234");
 
 console.log(failed ? `\n${failed} check(s) failed` : "\nall parser checks passed");
 process.exit(failed ? 1 : 0);

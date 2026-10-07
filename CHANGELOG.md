@@ -1,5 +1,12 @@
 # Changes
 
+## 1.16.0 — 2026-10-07
+
+- LootReserve's won rolls are sent too. LootReserve keeps them with each character (`WTF/Account/<account>/<realm>/<character>/SavedVariables/LootReserve.lua`), so each character's file is found and filed apart; the account's own file is read when its global profile is on. A disenchant and a raid roll come in as free, a roll's phase as its response, a reserve roll as "Reserved".
+- A MonolithDKP or CommunityDKP file brings its DKP table along with its loot, so a DKP guild's points stand beside the priority on its board.
+- A Gargul win carries the soft-reserve list it was won from. A list made on the guild's own site closes that raid's reserves with the win — even where the guild files RCLootCouncil's history, not Gargul's, as its loot.
+- An uploader set up before takes LootReserve's files at its next start, by the same rule as at setup (written in the last half-year); the files an officer chose stay as chosen.
+
 ## 1.15.1 — 2026-10-05
 
 - Each loot file says which game's folder it comes from (`_anniversary_`, `_classic_era_` …). Every World of Warcraft game keeps its own loot history, and one account's files from two games used to land in the same place on the site and overwrite each other. The site now files each game apart and answers a file from a game the guild does not play without filing it; the uploader says once which file it set aside and why.

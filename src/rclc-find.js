@@ -18,11 +18,20 @@ function registryInstallRoots() {
   return roots;
 }
 
-/** The account folder name from a SavedVariables path (…\Account\<name>\SavedVariables\…), for keeping several accounts apart. */
+/**
+ * The account folder name from a SavedVariables path (…\Account\<name>\SavedVariables\…), for keeping several accounts
+ * apart — and a character's own file (…\Account\<name>\<realm>\<character>\SavedVariables\, where LootReserve keeps its
+ * rolls, 1.16.0) is "<account>-<character>", each character's kept apart too.
+ */
 export function accountOf(file) {
-  const m = String(file).replace(/\\/g, "/").match(/\/Account\/([^/]+)\/SavedVariables\//i);
+  const f = String(file).replace(/\\/g, "/");
+  const own = f.match(/\/Account\/([^/]+)\/[^/]+\/([^/]+)\/SavedVariables\//i);
+  if (own) return `${own[1]}-${own[2]}`;
+  const m = f.match(/\/Account\/([^/]+)\/SavedVariables\//i);
   return m ? m[1] : "default";
 }
+/** The loot files kept with the character rather than the account: LootReserve's (1.16.0). */
+const PER_CHARACTER = /^LootReserve\.lua$/i;
 
 /** "Gargul" / "RCLootCouncil" … for a SavedVariables path (see LOOT_ADDONS in rclc-lua.js). */
 export const labelOfFile = (file) => addonLabel(systemOfFile(file));
@@ -45,6 +54,16 @@ function savedVariablesFiles(keep) {
           const sv = path.join(acc, a, "SavedVariables");
           if (!fs.existsSync(sv)) continue;
           for (const f of fs.readdirSync(sv)) if (keep(f)) found.push(path.join(sv, f));
+          // …and each character's own (Account\<a>\<realm>\<character>\SavedVariables), for the files kept there.
+          for (const realm of fs.readdirSync(path.join(acc, a))) {
+            if (realm === "SavedVariables") continue;
+            let chars = [];
+            try { chars = fs.readdirSync(path.join(acc, a, realm)); } catch { continue; }
+            for (const c of chars) {
+              const csv = path.join(acc, a, realm, c, "SavedVariables");
+              try { for (const f of fs.readdirSync(csv)) if (PER_CHARACTER.test(f) && keep(f)) found.push(path.join(csv, f)); } catch { /* no saved variables for this one */ }
+            }
+          }
         }
       }
     } catch { /* drive or folder not there */ }
