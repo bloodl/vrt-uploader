@@ -15,6 +15,11 @@ import { readJson, writeJson } from "./util.js";
  * session that's still logged in appears on the next run after logout.
  */
 
+// A realm as letters and digits only, for the realm filter: "Alliance - Classic Beta PvE" holds "classic-beta-pve" (a
+// guild's realm slug) and "Classic Beta PvE" (its name), and "Azjol-Nerub" holds "azjolnerub" — realm names have spaces
+// and hyphens (docs/ROADMAP.md N3, for Forever's realms). A realm that matched before still does.
+const flatRealm = (s) => String(s ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
 // Minimal Lua SavedVariables parser: tables, strings, numbers, booleans, nil — and "--" comments,
 // which WoW writes after array entries ("}, -- [1]") in many SavedVariables files.
 function skipBlank(text, pos, extra = "") {
@@ -121,10 +126,10 @@ const SUBTYPES = {
 export function rowsFromSavedVariables(luaText, realmFilter = "") {
   const db = extractLootDb(luaText);
   if (!db) throw new Error("no RCLootCouncilLootDB table in this file");
-  const rf = String(realmFilter ?? "").toLowerCase();
+  const rf = flatRealm(realmFilter);
   const rows = [];
   for (const [realmKey, playersTbl] of Object.entries(db?.factionrealm ?? {})) {
-    if (rf && !realmKey.toLowerCase().includes(rf)) continue;
+    if (rf && !flatRealm(realmKey).includes(rf)) continue;
     for (const [playerKey, entries] of Object.entries(playersTbl ?? {})) {
       const list = Array.isArray(entries) ? entries : Object.values(entries);
       for (const e of list) {
@@ -188,12 +193,14 @@ const rowOf = (o) => ({ player: "", date: "", time: "00:00:00", id: "", item: ""
 export function rowsFromGargul(luaText, realmFilter = "") {
   const db = extractGlobal(luaText, "GargulDB");
   if (!db) throw new Error("no GargulDB table in this file");
-  const rf = String(realmFilter ?? "").toLowerCase();
+  const rf = flatRealm(realmFilter);
   const rows = [];
   for (const [key, e] of Object.entries(db.AwardHistory ?? {})) {
     if (!e || typeof e !== "object" || !e.awardedTo || !e.timestamp) continue;
-    const realm = String(e.awardedTo).split("-")[1] ?? "";
-    if (rf && realm && !realm.toLowerCase().includes(rf)) continue;
+    // The realm is all after the name's first hyphen: "Fury Tann-Azjol-Nerub" is on Azjol-Nerub.
+    const to = String(e.awardedTo);
+    const realm = to.includes("-") ? to.slice(to.indexOf("-") + 1) : "";
+    if (rf && realm && !flatRealm(realm).includes(rf)) continue;
     const notes = [];
     if (e.BRCost) notes.push(`BR ${e.BRCost}`);
     if (e.GDKPCost) notes.push(`GDKP ${e.GDKPCost}g`);
@@ -214,7 +221,7 @@ export function rowsFromDkp(luaText, system = "monolithdkp", realmFilter = "") {
   const global = LOOT_ADDONS[system]?.global ?? "MonDKP_Loot";
   const db = extractGlobal(luaText, global);
   if (!db) throw new Error(`no ${global} table in this file`);
-  const rf = String(realmFilter ?? "").toLowerCase();
+  const rf = flatRealm(realmFilter);
   const rows = [];
   const isEntry = (e) => e && typeof e === "object" && e.player && e.loot && e.date;
   const walk = (node, keyPath, depth) => {
@@ -222,7 +229,7 @@ export function rowsFromDkp(luaText, system = "monolithdkp", realmFilter = "") {
     for (const [k, v] of Object.entries(node)) {
       if (isEntry(v)) {
         // CommunityDKP nests by "Realm-Guild" then team; the realm filter applies to that key when there is one.
-        if (rf && keyPath.length && !keyPath.some((p) => p.toLowerCase().includes(rf)) && /-/.test(keyPath[0] ?? "")) continue;
+        if (rf && keyPath.length && !keyPath.some((p) => flatRealm(p).includes(rf)) && /-/.test(keyPath[0] ?? "")) continue;
         if (v.deletes || v.deletedby) continue;
         const item = linkFor(v.loot);
         if (!item) continue;
