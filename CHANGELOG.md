@@ -1,5 +1,9 @@
 # Changes
 
+## 1.16.1 — 2026-10-15
+
+- CEPGP's loot is read where current CEPGP keeps it, `CEPGP.Traffic`. Its builds for TBC and Anniversary save no `TRAFFIC`, so a CEPGP guild's loot never reached the site. An older file with `TRAFFIC` is still read.
+
 ## 1.16.0 — 2026-10-07
 
 - LootReserve's won rolls are sent too. LootReserve keeps them with each character (`WTF/Account/<account>/<realm>/<character>/SavedVariables/LootReserve.lua`), so each character's file is found and filed apart; the account's own file is read when its global profile is on. A disenchant and a raid roll come in as free, a roll's phase as its response, a reserve roll as "Reserved".

@@ -168,7 +168,9 @@ export function rowsFromSavedVariables(luaText, realmFilter = "") {
 export const LOOT_ADDONS = {
   rclc: { label: "RCLootCouncil", file: /^RCLootCouncil.*\.lua$/i, global: "RCLootCouncilLootDB" },
   gargul: { label: "Gargul", file: /^Gargul\.lua$/i, global: "GargulDB" },
-  cepgp: { label: "CEPGP", file: /^CEPGP\.lua$/i, global: "TRAFFIC" },
+  // Current CEPGP (1.14.1 for TBC, the Anniversary builds) saves one global, CEPGP, its loot log at CEPGP.Traffic; older
+  // ones kept a global TRAFFIC, which the current ones take in once.
+  cepgp: { label: "CEPGP", file: /^CEPGP\.lua$/i, global: "CEPGP" },
   monolithdkp: { label: "MonolithDKP", file: /^MonolithDKP\.lua$/i, global: "MonDKP_Loot" },
   communitydkp: { label: "CommunityDKP", file: /^CommunityDKP\.lua$/i, global: "CommDKP_Loot" },
   // 1.16.0: its won rolls — kept with the character (rclc-find.js looks there), or the account when its global profile is on.
@@ -242,10 +244,14 @@ export function rowsFromDkp(luaText, system = "monolithdkp", realmFilter = "") {
   return rows;
 }
 
-/** CEPGP: TRAFFIC[i] = { [1] target, [2] issuer, [3] action, [4] EP before, [5] EP after, [6] GP before, [7] GP after, [8] item link, [9] timestamp, [10] guid }. */
+/**
+ * CEPGP's loot log: CEPGP.Traffic in current CEPGP, the global TRAFFIC in older ones. An entry is { [1] target, [2]
+ * issuer, [3] action, [4] EP before, [5] EP after, [6] GP before, [7] GP after, [8] item link, [9] timestamp, [10] its
+ * id (current CEPGP; an older one wrote a GUID there), [11] the issuer's GUID }.
+ */
 export function rowsFromCepgp(luaText) {
-  const t = extractGlobal(luaText, "TRAFFIC");
-  if (!t) throw new Error("no TRAFFIC table in this file");
+  const t = extractGlobal(luaText, "CEPGP")?.Traffic ?? extractGlobal(luaText, "TRAFFIC");
+  if (!t) throw new Error("no CEPGP loot log in this file (CEPGP.Traffic, or TRAFFIC in an older CEPGP)");
   const rows = [];
   let undated = 0;
   for (const e of listOf(t)) {
