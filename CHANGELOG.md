@@ -1,5 +1,14 @@
 # Changes
 
+## 1.17.0 — 2026-10-20
+
+- One copy runs at a time: a lock in the settings folder, kept across every hand-over to a new version.
+- `--status` says whether the uploader runs and what it last did: each loot file's last upload and last try, the in-game addon's readings it sent, the addon's inbox and the update check.
+- A failed upload is tried again after 30 seconds, after 2 minutes, then every 10 minutes. It used to wait for the game's next logout. An addon reading the site could not take goes again at the next look.
+- A look walks the WoW folders once and reads a saved file only when the game saved it again. The log is capped.
+- Every upload carries the guild's upload code. A copy that finds its guild by the names in the loot history asks for the code.
+- On a Mac: the WoW folders are found, a download named for the guild keeps its guild, and a login agent (launchd) starts the uploader and keeps it updated.
+
 ## 1.16.1 — 2026-10-15
 
 - CEPGP's loot is read where current CEPGP keeps it, `CEPGP.Traffic`. Its builds for TBC and Anniversary save no `TRAFFIC`, so a CEPGP guild's loot never reached the site. An older file with `TRAFFIC` is still read.

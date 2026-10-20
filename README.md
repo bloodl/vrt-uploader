@@ -37,7 +37,7 @@ downloaded or swapped as an executable, ever: an update replaces the `.cjs` only
 node vrt-uploader.cjs
 ```
 
-The first run finds your guild from the names in your loot history, or asks for the guild's upload code, and then
+The first run finds your guild from the names in your loot history, then asks for its upload code, and then
 asks whether to start with Windows. After that it runs by itself.
 
 Windows shows "Windows protected your PC" the first few times an exe with a new certificate runs; "More info", then
@@ -53,8 +53,8 @@ off; `--check-update` asks now.
 
 | option | what it does |
 |---|---|
-| *(none)* | first run finds your guild from the names in your loot history, then uploads and keeps watching |
-| `--code <code>` | the guild's upload code, for when the guild cannot be found or wants every upload to carry it |
+| *(none)* | first run finds your guild from the names in your loot history, asks for its upload code, then uploads and keeps watching |
+| `--code <code>` | the guild's upload code, which every upload carries |
 | `--hub <url>` | the hub to ask which guild this is (default `https://vortexraidtool.com`) |
 | `--file <path>` | a SavedVariables `.lua` of one of the loot addons (auto-detected otherwise; repeatable) |
 | `--system <id>` | which addon a `--file` is, when its name does not say: `rclc`, `gargul`, `cepgp`, `monolithdkp`, `communitydkp` |
